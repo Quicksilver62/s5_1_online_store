@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ошибка сервера - 500</title>
+    <style>
+        :root {
+            --primary-color: #dc3545;
+            --secondary-color: #f8f9fa;
+            --text-color: #343a40;
+            --light-gray: #e9ecef;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+
+        .error-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .error-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .error-icon {
+            font-size: 5rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        .error-subtitle {
+            font-size: 1.2rem;
+            margin-top: 0.5rem;
+            color: #6c757d;
+        }
+
+        .error-content {
+            margin: 2rem 0;
+        }
+
+        .error-card {
+            background-color: var(--light-gray);
+            border-left: 4px solid var(--primary-color);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .error-card pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .error-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #c82333;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+
+        .tech-details {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .hidden-details {
+            display: none;
+            margin-top: 1rem;
+        }
+
+        .toggle-details {
+            color: var(--primary-color);
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+<div class="error-container">
+    <div class="error-header">
+        <div class="error-icon">⚠️</div>
+        <h1>500</h1>
+        <div class="error-subtitle">Ошибка сервера</div>
+    </div>
+
+    <div class="error-content">
+        <p>На сервере произошла непредвиденная ошибка. Пожалуйста, попробуйте позже.</p>
+
+        <div class="error-card" th:if="${errorMessage}">
+            <strong>Сообщение об ошибке:</strong>
+            <p th:text="${errorMessage}"></p>
+        </div>
+
+        <div th:if="${showDetails}">
+            <a href="javascript:void(0)" class="toggle-details" onclick="toggleDetails()">
+                Показать технические детали
+            </a>
+
+            <div id="techDetails" class="hidden-details">
+                <div class="error-card" th:if="${path}">
+                    <strong>Путь:</strong>
+                    <p th:text="${path}"></p>
+                </div>
+
+                <div class="error-card" th:if="${timestamp}">
+                    <strong>Время:</strong>
+                    <p th:text="${timestamp}"></p>
+                </div>
+
+                <div class="error-card" th:if="${exception}">
+                    <strong>Тип исключения:</strong>
+                    <p th:text="${exception}"></p>
+                </div>
+
+                <div class="error-card" th:if="${trace}">
+                    <strong>Стек вызовов:</strong>
+                    <pre th:text="${trace}"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="error-actions">
+        <a th:href="@{/}" class="btn btn-primary">На главную</a>
+        <a href="javascript:history.back()" class="btn btn-secondary">Назад</a>
+    </div>
+
+    <div class="tech-details">
+        <p>Если ошибка повторяется, пожалуйста, сообщите в службу поддержки.</p>
+    </div>
+</div>
+
+<script>
+    function toggleDetails() {
+        const details = document.getElementById('techDetails');
+        const link = document.querySelector('.toggle-details');
+
+        if (details.style.display === 'none') {
+            details.style.display = 'block';
+            link.textContent = 'Скрыть технические детали';
+        } else {
+            details.style.display = 'none';
+            link.textContent = 'Показать технические детали';
+        }
+    }
+</script>
+</body>
+</html>

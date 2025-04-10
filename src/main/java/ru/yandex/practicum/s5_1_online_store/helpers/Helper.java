@@ -1,4 +1,4 @@
-package ru.yandex.practicum.s5_1_online_store.services;
+package ru.yandex.practicum.s5_1_online_store.helpers;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;

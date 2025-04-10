@@ -2,19 +2,21 @@ package ru.yandex.practicum.s5_1_online_store.model;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.Setter;
 
 @Getter
+@Setter
 @Entity
-@Table(schema = "store", name = "order_items")
-public class OrderItems {
+@Table(schema = "store", name = "cart_items")
+public class CartItem {
 
     @EmbeddedId
-    private OrderItemId id;
+    private CartItemId id;
 
     @ManyToOne
-    @MapsId("orderId")
-    @JoinColumn(name = "order_id")
-    private Order order;
+    @MapsId("cartId")
+    @JoinColumn(name = "cart_id")
+    private Cart cart;
 
     @ManyToOne
     @MapsId("itemId")

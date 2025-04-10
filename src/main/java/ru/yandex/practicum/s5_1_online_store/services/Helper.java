@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.experimental.UtilityClass;
 
+import java.util.Objects;
+
 @UtilityClass
 public class Helper {
 
@@ -15,8 +17,8 @@ public class Helper {
         return getCookie(request, USER_ID);
     }
 
-    public String getCartIdFromCookie(HttpServletRequest request) {
-        return getCookie(request, CART_ID);
+    public Integer getCartIdFromCookie(HttpServletRequest request) {
+        return Integer.parseInt(Objects.requireNonNull(getCookie(request, CART_ID)));
     }
 
     public void setCartIdCookie(HttpServletResponse response, Integer cartId) {

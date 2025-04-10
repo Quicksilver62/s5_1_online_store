@@ -8,6 +8,9 @@ import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import ru.yandex.practicum.s5_1_online_store.dto.ItemDto;
 import ru.yandex.practicum.s5_1_online_store.services.ItemService;
 
@@ -20,6 +23,15 @@ public class MainController {
     @GetMapping
     public String mainPage(Model model, HttpServletRequest request, HttpServletResponse response, Pageable pageable) {
         Slice<ItemDto> items = itemService.getItems(request, response, pageable);
+        model.addAttribute("items", items.getContent());
+        model.addAttribute("paging", pageable);
+        return "main";
+    }
+
+    @PostMapping("//main/items/{itemId}")
+    public String handleItemAction(@RequestParam String action, @PathVariable("itemId") Integer itemId, Model model,
+                                   HttpServletRequest request, HttpServletResponse response, Pageable pageable) {
+        Slice<ItemDto> items = itemService.handleItemAction(action, itemId, request, response, pageable);
         model.addAttribute("items", items.getContent());
         model.addAttribute("paging", pageable);
         return "main";

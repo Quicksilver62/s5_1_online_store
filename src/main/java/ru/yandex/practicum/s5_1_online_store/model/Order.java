@@ -22,7 +22,7 @@ public class Order {
     private User user;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<OrderItems> orderItems = new HashSet<>();
+    private Set<OrderItem> orderItems = new HashSet<>();
 
     @Column(name = "total_sum")
     private Integer totalSum;
@@ -35,7 +35,7 @@ public class Order {
         return orderItems.stream()
                 .filter(oi -> oi.getItem().equals(item))
                 .findFirst()
-                .map(OrderItems::getCount)
+                .map(OrderItem::getCount)
                 .orElse(0);
     }
 }

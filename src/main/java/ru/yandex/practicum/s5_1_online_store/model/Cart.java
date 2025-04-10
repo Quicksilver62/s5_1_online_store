@@ -26,10 +26,10 @@ public class Cart {
     private User user;
 
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<CartItems> cartItems = new HashSet<>();
+    private Set<CartItem> cartItems = new HashSet<>();
 
     public void addItem(Item item, int count) {
-        CartItems cartItem = new CartItems();
+        CartItem cartItem = new CartItem();
         cartItem.setCart(this);
         cartItem.setItem(item);
         cartItem.setCount(count);
@@ -40,7 +40,7 @@ public class Cart {
         return cartItems.stream()
                 .filter(ci -> ci.getItem().equals(item))
                 .findFirst()
-                .map(CartItems::getCount)
+                .map(CartItem::getCount)
                 .orElse(0);
     }
 }

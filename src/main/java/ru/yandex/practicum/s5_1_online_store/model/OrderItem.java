@@ -1,10 +1,13 @@
 package ru.yandex.practicum.s5_1_online_store.model;
 
 import jakarta.persistence.*;
-import lombok.Getter;
+import lombok.*;
 
 @Getter
+@Setter
 @Entity
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(schema = "store", name = "order_items")
 public class OrderItem {
 

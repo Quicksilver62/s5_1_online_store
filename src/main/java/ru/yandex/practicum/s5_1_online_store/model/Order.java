@@ -1,7 +1,10 @@
 package ru.yandex.practicum.s5_1_online_store.model;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
@@ -10,6 +13,9 @@ import java.util.Set;
 
 @Getter
 @Entity
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(schema = "store", name = "orders")
 public class Order {
 
@@ -25,17 +31,17 @@ public class Order {
     private Set<OrderItem> orderItems = new HashSet<>();
 
     @Column(name = "total_sum")
-    private Integer totalSum;
+    private Double totalSum;
 
     @Column(name = "created_at", updatable = false)
     @CreationTimestamp
     private LocalDateTime createdAt;
 
-    public int getItemCount(Item item) {
-        return orderItems.stream()
-                .filter(oi -> oi.getItem().equals(item))
-                .findFirst()
-                .map(OrderItem::getCount)
-                .orElse(0);
+    public void addItem(Item item, int count) {
+        OrderItem orderItem = new OrderItem();
+        orderItem.setOrder(this);
+        orderItem.setItem(item);
+        orderItem.setCount(count);
+        orderItems.add(orderItem);
     }
 }

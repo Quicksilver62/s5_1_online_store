@@ -35,12 +35,4 @@ public class Cart {
         cartItem.setCount(count);
         cartItems.add(cartItem);
     }
-
-    public int getItemCount(Item item) {
-        return cartItems.stream()
-                .filter(ci -> ci.getItem().equals(item))
-                .findFirst()
-                .map(CartItem::getCount)
-                .orElse(0);
-    }
 }

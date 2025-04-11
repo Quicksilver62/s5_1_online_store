@@ -18,7 +18,7 @@ import ru.yandex.practicum.s5_1_online_store.model.User;
 import ru.yandex.practicum.s5_1_online_store.repository.ItemRepository;
 
 import java.util.List;
-import java.util.Objects;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
 @Service
@@ -34,42 +34,21 @@ public class ItemService {
         UUID userId = UUID.fromString(Helper.getUserIdFromCookie(request));
         User user = userService.getUser(userId);
         Cart cart = cartService.getUserCart(user);
-        Helper.setCartIdCookie(response, cart.getId());
 
-        return getItems(cart, pageable);
+        Helper.setCartIdCookie(response, cart.getId());
+        return getItemsWithCount(cart, pageable);
     }
 
     public Slice<ItemDto> handleItemAction(String action, Integer itemId, HttpServletRequest request,
-                                 HttpServletResponse response, Pageable pageable) {
+                                           Pageable pageable) {
         Integer cartId = Helper.getCartIdFromCookie(request);
         Cart cart = cartService.getCartById(cartId);
-        var cartItem = cart.getCartItems().stream()
-                .filter(ci -> ci.getItem().getId().equals(itemId))
-                .findFirst()
-                .orElse(null);
-        switch (action) {
-            case "plus":
-                if (Objects.isNull(cartItem)) {
-                    cartService.addNewItemToCart(cart, itemRepository.findById(itemId).orElseThrow());
-                } else {
-                    cartService.addItemToCart(cartItem);
-                }
-                break;
-            case "minus":
-                cartService.removeItemFromCart(cartItem);
-                break;
-            case "delete":
-                cartService.removeAllFromCart(cartItem);
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown action: " + action);
+        cartService.handleItemAction(action, itemId, request);
 
-        }
-
-        return getItems(cart, pageable);
+        return getItemsWithCount(cart, pageable);
     }
 
-    private Slice<ItemDto> getItems(Cart cart, Pageable pageable) {
+    private Slice<ItemDto> getItemsWithCount(Cart cart, Pageable pageable) {
         Page<Item> items = itemRepository.findAll(pageable);
 
         List<ItemDto> dtoList = items.stream()
@@ -86,5 +65,14 @@ public class ItemService {
                 .toList();
 
         return new SliceImpl<>(dtoList, items.getPageable(), items.hasNext());
+    }
+
+    public ItemDto getItem(Integer id, HttpServletRequest request) {
+        Integer cartId = Helper.getCartIdFromCookie(request);
+        Item item = itemRepository.findById(id).orElseThrow(() -> new NoSuchElementException(id + " not found"));
+        CartItem cartItem = cartService.gerCartItem(id, cartId);
+        ItemDto itemDto = itemMapper.toDto(item);
+        itemDto.setCount(cartItem.getCount());
+        return itemDto;
     }
 }

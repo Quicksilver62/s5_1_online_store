@@ -27,7 +27,7 @@ public class Item {
     private String imgPath;
 
     @Column
-    private Integer price;
+    private Double price;
 
     @OneToMany(mappedBy = "item")
     private Set<Cart> carts = new HashSet<>();

@@ -38,15 +38,15 @@ public class MainPageTest {
     void mainPage_ShouldReturnMainView() throws Exception {
         Pageable pageable = PageRequest.of(0, 10);
         Slice<ItemDto> mockSlice = new SliceImpl<>(List.of(
-                new ItemDto(1, "Item 1", "Desc 1", "/img1.jpg", 100, 5),
-                new ItemDto(2, "Item 2", "Desc 2", "/img2.jpg", 200, 3)
+                new ItemDto(1, "Item 1", "Desc 1", "/img1.jpg", 100.0, 5),
+                new ItemDto(2, "Item 2", "Desc 2", "/img2.jpg", 200.0, 3)
         ), pageable, false);
 
         when(itemService.getItems(ArgumentMatchers.any(HttpServletRequest.class),
                 ArgumentMatchers.any(HttpServletResponse.class), ArgumentMatchers.any(Pageable.class)))
                 .thenReturn(mockSlice);
 
-        mockMvc.perform(get("/")
+        mockMvc.perform(get("/main/items")
                         .param("page", "0")
                         .param("size", "10"))
                 .andExpect(status().isOk())
@@ -60,11 +60,11 @@ public class MainPageTest {
     void handleItemAction_WithPlusAction_ShouldAddItem() throws Exception {
         Pageable pageable = PageRequest.of(0, 10);
         Slice<ItemDto> mockSlice = new SliceImpl<>(List.of(
-                new ItemDto(1, "Item 1", "Desc 1", "/img1.jpg", 100, 6) // count increased
+                new ItemDto(1, "Item 1", "Desc 1", "/img1.jpg", 100.0, 6) // count increased
         ), pageable, false);
 
         when(itemService.handleItemAction(eq("plus"), eq(1), ArgumentMatchers.any(HttpServletRequest.class),
-                        ArgumentMatchers.any(HttpServletResponse.class), ArgumentMatchers.any(Pageable.class)))
+                ArgumentMatchers.any(Pageable.class)))
                 .thenReturn(mockSlice);
 
         mockMvc.perform(post("/main/items/1")
@@ -79,8 +79,8 @@ public class MainPageTest {
 
     @Test
     void handleItemAction_WithInvalidAction_ShouldReturnMainView() throws Exception {
-        when(itemService.handleItemAction(eq("invalid"), eq(1), ArgumentMatchers.any(HttpServletRequest.class),
-                ArgumentMatchers.any(HttpServletResponse.class), ArgumentMatchers.any(Pageable.class)))
+        when(itemService.handleItemAction(eq("invalid"), eq(1),
+                ArgumentMatchers.any(HttpServletRequest.class), ArgumentMatchers.any(Pageable.class)))
                 .thenThrow(IllegalArgumentException.class);
 
         mockMvc.perform(post("/main/items/1")

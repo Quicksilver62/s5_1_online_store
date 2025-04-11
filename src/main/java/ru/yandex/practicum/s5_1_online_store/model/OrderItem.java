@@ -14,12 +14,7 @@ public class OrderItem {
     @EmbeddedId
     private OrderItemId id;
 
-    @ManyToOne
-    @MapsId("orderId")
-    @JoinColumn(name = "order_id")
-    private Order order;
-
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("itemId")
     @JoinColumn(name = "item_id")
     private Item item;

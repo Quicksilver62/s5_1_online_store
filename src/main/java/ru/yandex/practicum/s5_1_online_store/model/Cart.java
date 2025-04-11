@@ -1,15 +1,13 @@
 package ru.yandex.practicum.s5_1_online_store.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.HashSet;
 import java.util.Set;
 
 @Getter
+@Setter
 @Entity
 @Builder
 @AllArgsConstructor
@@ -21,16 +19,17 @@ public class Cart {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", unique = true)
     private User user;
 
+    @Builder.Default
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "cart_id")
     private Set<CartItem> cartItems = new HashSet<>();
 
     public void addItem(Item item, int count) {
         CartItem cartItem = new CartItem();
-        cartItem.setCart(this);
         cartItem.setItem(item);
         cartItem.setCount(count);
         cartItems.add(cartItem);

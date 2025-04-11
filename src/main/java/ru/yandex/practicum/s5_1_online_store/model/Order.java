@@ -1,10 +1,7 @@
 package ru.yandex.practicum.s5_1_online_store.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
@@ -12,6 +9,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Getter
+@Setter
 @Entity
 @Builder
 @AllArgsConstructor
@@ -24,9 +22,10 @@ public class Order {
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", unique = true)
+    @JoinColumn(name = "user_id")
     private User user;
 
+    @Builder.Default
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<OrderItem> orderItems = new HashSet<>();
 
@@ -39,7 +38,6 @@ public class Order {
 
     public void addItem(Item item, int count) {
         OrderItem orderItem = new OrderItem();
-        orderItem.setOrder(this);
         orderItem.setItem(item);
         orderItem.setCount(count);
         orderItems.add(orderItem);

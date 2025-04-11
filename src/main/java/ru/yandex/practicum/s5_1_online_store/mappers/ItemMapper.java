@@ -8,6 +8,5 @@ import ru.yandex.practicum.s5_1_online_store.model.Item;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface ItemMapper {
 
-    Item fromDto(ItemDto itemDto);
     ItemDto toDto(Item item);
 }

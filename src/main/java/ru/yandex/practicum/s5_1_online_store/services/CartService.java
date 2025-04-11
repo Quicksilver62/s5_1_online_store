@@ -27,7 +27,7 @@ public class CartService {
     private final OrderRepository orderRepository;
 
     public Cart getUserCart(User user) {
-        var cartOpt = cartRepository.findByUserId(user.getId());
+        var cartOpt = cartRepository.findByUser(user);
         if (cartOpt.isPresent()) {
             return cartOpt.get();
         }

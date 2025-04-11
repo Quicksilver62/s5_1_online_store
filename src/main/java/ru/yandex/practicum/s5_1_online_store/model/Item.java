@@ -1,7 +1,9 @@
 package ru.yandex.practicum.s5_1_online_store.model;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.HashSet;
@@ -10,6 +12,8 @@ import java.util.Set;
 @Getter
 @Setter
 @Entity
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(schema = "store", name = "items")
 public class Item {
 

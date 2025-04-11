@@ -42,11 +42,11 @@ public class CartController {
         return "cart";
     }
 
-    @PostMapping("/{buy}")
+    @PostMapping("/buy")
     public String buy(Model model, HttpServletRequest request) {
         cartService.buy(request);
         model.addAttribute("items", Collections.EMPTY_LIST);
-        model.addAttribute("total", 0);
+        model.addAttribute("total", 0.0);
         return "cart";
     }
 }

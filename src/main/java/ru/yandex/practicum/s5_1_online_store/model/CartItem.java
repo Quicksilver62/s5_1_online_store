@@ -1,24 +1,20 @@
 package ru.yandex.practicum.s5_1_online_store.model;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 @Getter
 @Setter
 @Entity
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(schema = "store", name = "cart_items")
 public class CartItem {
 
     @EmbeddedId
     private CartItemId id;
 
-    @ManyToOne
-    @MapsId("cartId")
-    @JoinColumn(name = "cart_id")
-    private Cart cart;
-
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("itemId")
     @JoinColumn(name = "item_id")
     private Item item;

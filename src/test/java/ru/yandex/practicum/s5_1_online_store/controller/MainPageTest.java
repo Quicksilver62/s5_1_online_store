@@ -88,4 +88,15 @@ public class MainPageTest {
                 .andExpect(status().is4xxClientError())
                 .andExpect(view().name("invalid-arguments.html"));
     }
+
+    @Test
+    void ordersPage_WhenServiceThrowsException_ShouldReturnError() throws Exception {
+        when(itemService.getItems(ArgumentMatchers.any(HttpServletRequest.class),
+                ArgumentMatchers.any(HttpServletResponse.class), ArgumentMatchers.any(Pageable.class)))
+                .thenThrow(new RuntimeException("Service error"));
+
+        mockMvc.perform(get("/main/items/"))
+                .andExpect(status().is5xxServerError())
+                .andExpect(view().name("oops.html"));
+    }
 }

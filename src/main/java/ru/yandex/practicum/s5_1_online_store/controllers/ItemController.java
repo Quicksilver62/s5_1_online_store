@@ -1,11 +1,11 @@
 package ru.yandex.practicum.s5_1_online_store.controllers;
 
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import ru.yandex.practicum.s5_1_online_store.dto.ItemDto;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.s5_1_online_store.services.CartService;
 import ru.yandex.practicum.s5_1_online_store.services.ItemService;
 
@@ -18,20 +18,22 @@ public class ItemController {
     private final CartService cartService;
 
     @GetMapping("/{id}")
-    public String itemPage(@PathVariable("id") Integer id, Model model, HttpServletRequest request) {
-        ItemDto item = itemService.getItem(id, request);
-        model.addAttribute("item", item);
-        return "item";
+    public Mono<String> itemPage(@PathVariable("id") Integer id, Model model, ServerHttpRequest request) {
+        return itemService.getItem(id, request)
+                .doOnNext(item -> model.addAttribute("item", item))
+                .map(item -> "item")
+                .defaultIfEmpty("not-found");
     }
 
     @PostMapping("/{id}")
-    public String handleItemAction(@RequestParam String action,
-                                   @PathVariable("id") Integer id,
-                                   Model model,
-                                   HttpServletRequest request) {
-        cartService.handleItemAction(action, id, request);
-        ItemDto item = itemService.getItem(id, request);
-        model.addAttribute("item", item);
-        return "item";
+    public Mono<String> handleItemAction(@RequestParam String action,
+                                         @PathVariable("id") Integer id,
+                                         Model model,
+                                         ServerHttpRequest request) {
+        return cartService.handleItemAction(action, id, request)
+                .then(itemService.getItem(id, request))
+                .doOnNext(item -> model.addAttribute("item", item))
+                .map(item -> "item")
+                .defaultIfEmpty("not-found");
     }
 }

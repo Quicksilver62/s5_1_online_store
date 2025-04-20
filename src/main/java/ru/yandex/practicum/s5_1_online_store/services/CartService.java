@@ -1,20 +1,20 @@
 package ru.yandex.practicum.s5_1_online_store.services;
 
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.s5_1_online_store.dto.ItemDto;
 import ru.yandex.practicum.s5_1_online_store.helpers.Helper;
 import ru.yandex.practicum.s5_1_online_store.mappers.ItemMapper;
 import ru.yandex.practicum.s5_1_online_store.model.*;
-import ru.yandex.practicum.s5_1_online_store.repository.CartItemsRepository;
-import ru.yandex.practicum.s5_1_online_store.repository.CartRepository;
-import ru.yandex.practicum.s5_1_online_store.repository.ItemRepository;
-import ru.yandex.practicum.s5_1_online_store.repository.OrderRepository;
+import ru.yandex.practicum.s5_1_online_store.repository.*;
 
-import java.util.List;
-import java.util.Objects;
+import java.time.LocalDateTime;
+import java.util.NoSuchElementException;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -25,111 +25,115 @@ public class CartService {
     private final ItemMapper itemMapper;
     private final ItemRepository itemRepository;
     private final OrderRepository orderRepository;
+    private final OrderItemsRepository orderItemsRepository;
 
-    public Cart getUserCart(User user) {
-        var cartOpt = cartRepository.findByUser(user);
-        if (cartOpt.isPresent()) {
-            return cartOpt.get();
+    public Mono<Cart> getUserCart(UUID userId) {
+        return cartRepository.findByUserId(userId)
+                .switchIfEmpty(Mono.defer(() -> {
+                    Cart newCart = Cart.builder()
+                            .userId(userId)
+                            .build();
+                    return cartRepository.save(newCart);
+                }));
+    }
+
+    public Mono<Cart> getCartById(Integer id) {
+        return cartRepository.findById(id);
+    }
+
+    public Mono<CartItem> getCartItem(Integer itemId, Integer cartId) {
+        return cartItemsRepository.findById_ItemIdAndId_CartId(itemId, cartId);
+    }
+
+    public Mono<Void> addNewItemToCart(String action, Integer itemId, Integer cartId) {
+        if (!"plus".equalsIgnoreCase(action)) {
+            return Mono.empty();
         }
-        var cart = Cart.builder()
-                .user(user)
-                .build();
-        cartRepository.save(cart);
-        return cart;
+        return itemRepository.findById(itemId)
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Item not found")))
+                .flatMap(item -> {
+                    CartItem newCartItem = CartItem.builder()
+                            .id(new CartItemId(itemId, cartId))
+                            .count(1)
+                            .build();
+                    return cartItemsRepository.save(newCartItem).then();
+                });
     }
 
-    public Cart getCartById(Integer id) {
-        return cartRepository.findById(id).orElseThrow(IllegalArgumentException::new);
-    }
-
-    public CartItem gerCartItem(Integer itemId, Integer cartId) {
-        return cartItemsRepository.findCartItemByItemIdAndCartId(itemId, cartId)
-                .orElseThrow(IllegalArgumentException::new);
-    }
-
-    public void addNewItemToCart(Cart cart, Item item) {
-        cart.addItem(item, 1);
-        cartRepository.save(cart);
-    }
-
-    public void addItemToCart(CartItem cartItem) {
+    public Mono<Void> addItemToCart(CartItem cartItem) {
         cartItem.setCount(cartItem.getCount() + 1);
-        cartItemsRepository.save(cartItem);
+        return cartItemsRepository.save(cartItem).then();
     }
 
-    public void removeItemFromCart(CartItem cartItem) {
-        if (Objects.isNull(cartItem)) {
-            return;
+    public Mono<Void> removeItemFromCart(CartItem cartItem) {
+        if (cartItem.getCount() <= 1) {
+            return cartItemsRepository.delete(cartItem);
         }
-        var count = cartItem.getCount() - 1;
-        if (count == 0) {
-            cartItemsRepository.delete(cartItem);
-        } else {
-            cartItem.setCount(count);
-            cartItemsRepository.save(cartItem);
-        }
+        cartItem.setCount(cartItem.getCount() - 1);
+        return cartItemsRepository.save(cartItem).then();
     }
 
-    public void removeAllFromCart(CartItem cartItem) {
-        cartItemsRepository.delete(cartItem);
+    public Mono<Void> removeAllFromCart(CartItem cartItem) {
+        return cartItemsRepository.delete(cartItem);
     }
 
-    public List<ItemDto> getCartItems(HttpServletRequest request) {
-        Integer cartId = Helper.getCartIdFromCookie(request);
-        Cart cart = getCartById(cartId);
-        return cart.getCartItems().stream()
+    public Flux<ItemDto> getCartItems(ServerHttpRequest request) {
+        return Helper.getCartIdFromCookie(request)
+                .flatMapMany(cartItemsRepository::findByCartIdWithItem)
                 .map(cartItem -> {
-                    var item = cartItem.getItem();
-                    var dto = itemMapper.toDto(item);
+                    ItemDto dto = itemMapper.toDto(cartItem.getItem());
                     dto.setCount(cartItem.getCount());
                     return dto;
-                })
-                .toList();
+                });
     }
 
-    public void handleItemAction(String action, Integer itemId, HttpServletRequest request) {
-        Integer cartId = Helper.getCartIdFromCookie(request);
-        Cart cart = getCartById(cartId);
-        var cartItem = cart.getCartItems().stream()
-                .filter(ci -> ci.getItem().getId().equals(itemId))
-                .findFirst()
-                .orElse(null);
-        switch (action) {
-            case "plus":
-                if (Objects.isNull(cartItem)) {
-                    addNewItemToCart(cart, itemRepository.findById(itemId).orElseThrow());
-                } else {
-                    addItemToCart(cartItem);
-                }
-                break;
-            case "minus":
-                removeItemFromCart(cartItem);
-                break;
-            case "delete":
-                removeAllFromCart(cartItem);
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown action: " + action);
-
-        }
+    public Mono<Void> handleItemAction(String action, Integer itemId, ServerHttpRequest request) {
+        return Helper.getCartIdFromCookie(request)
+                .flatMap(cartId -> cartItemsRepository.findById_ItemIdAndId_CartId(itemId, cartId)
+                        .flatMap(cartItem -> switch (action.toLowerCase()) {
+                            case "plus" -> addItemToCart(cartItem);
+                            case "minus" -> removeItemFromCart(cartItem);
+                            case "delete" -> removeAllFromCart(cartItem);
+                            default -> Mono.error(new IllegalArgumentException("Unknown action: " + action));
+                        })
+                        .switchIfEmpty(addNewItemToCart(action, itemId, cartId))
+                );
     }
 
     @Transactional
-    public void buy(HttpServletRequest request) {
-        Integer cartId = Helper.getCartIdFromCookie(request);
-        Cart cart = getCartById(cartId);
-        if (Objects.isNull(cart)) {
-            return;
-        }
-        Order order = Order.builder()
-                .user(cart.getUser())
-                .totalSum(cart.getCartItems().stream()
-                        .mapToDouble(ci -> ci.getItem().getPrice())
-                        .sum()
-                )
-                .build();
-        cart.getCartItems().forEach(cartItem -> order.addItem(cartItem.getItem(), cartItem.getCount()));
-        orderRepository.save(order);
-        cart.getCartItems().clear();
+    public Mono<Void> buy(ServerHttpRequest request) {
+        return Helper.getCartIdFromCookie(request)
+                .flatMap(this::getCartById)
+                .flatMap(cart -> createOrderFromCart(cart)
+                        .then(cartItemsRepository.deleteAllById_CartId(cart.getId()))
+                );
+    }
+
+    private Mono<Order> createOrderFromCart(Cart cart) {
+        return cartItemsRepository.findByCartIdWithItem(cart.getId())
+                .collectList()
+                .flatMap(cartItems -> {
+                    double totalSum = cartItems.stream()
+                            .mapToDouble(ci -> ci.getItem().getPrice() * ci.getCount())
+                            .sum();
+
+                    return orderRepository.save(Order.builder()
+                                    .userId(cart.getUserId())
+                                    .totalSum(totalSum)
+                                    .createdAt(LocalDateTime.now())
+                                    .build())
+                            .flatMap(savedOrder ->
+                                    orderItemsRepository.saveAll(
+                                            cartItems.stream()
+                                                    .map(ci -> new OrderItem(
+                                                            new OrderItemId(ci.getId().getItemId(), savedOrder.getId()),
+                                                            ci.getCount(),
+                                                            ci.getItem()
+                                                    ))
+                                                    .toList()
+                                            )
+                                            .then(Mono.just(savedOrder))
+                            );
+                });
     }
 }

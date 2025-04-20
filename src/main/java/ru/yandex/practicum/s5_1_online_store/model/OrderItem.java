@@ -1,24 +1,22 @@
 package ru.yandex.practicum.s5_1_online_store.model;
 
-import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.relational.core.mapping.Table;
 
 @Getter
 @Setter
-@Entity
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(schema = "store", name = "order_items")
+@Table("store.order_items")
 public class OrderItem {
 
-    @EmbeddedId
+    @Id
     private OrderItemId id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @MapsId("itemId")
-    @JoinColumn(name = "item_id")
-    private Item item;
-
-    @Column(name = "count")
     private Integer count;
+
+    @Transient
+    private Item item;
 }

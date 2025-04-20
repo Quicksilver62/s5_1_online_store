@@ -1,6 +1,5 @@
 package ru.yandex.practicum.s5_1_online_store.controllers;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,20 +14,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoSuchElementException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public String handleNoSuchElementException() {
-        return "not-found.html";
+        return "not-found";
     }
 
     // Обработка 400
-    @ExceptionHandler({IllegalArgumentException.class, ConstraintViolationException.class})
+    @ExceptionHandler({IllegalArgumentException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public String handleIllegalArgumentException() {
-        return "invalid-arguments.html";
+        return "invalid-arguments";
     }
 
     // Обработка 500
     @ExceptionHandler({Exception.class})
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public String handleException() {
-        return "oops.html";
+        return "oops";
     }
 }

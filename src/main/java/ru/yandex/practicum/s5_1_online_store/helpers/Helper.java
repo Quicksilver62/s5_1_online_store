@@ -1,11 +1,11 @@
 package ru.yandex.practicum.s5_1_online_store.helpers;
 
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.experimental.UtilityClass;
-
-import java.util.Objects;
+import org.springframework.http.HttpCookie;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
+import reactor.core.publisher.Mono;
 
 @UtilityClass
 public class Helper {
@@ -13,30 +13,30 @@ public class Helper {
     private final String USER_ID = "user_id";
     private final String CART_ID = "cart_id";
 
-    public String getUserIdFromCookie(HttpServletRequest request) {
-        return getCookie(request, USER_ID);
+    public Mono<String> getUserIdFromCookie(ServerHttpRequest request) {
+        return getCookieValue(request, USER_ID);
     }
 
-    public Integer getCartIdFromCookie(HttpServletRequest request) {
-        return Integer.parseInt(Objects.requireNonNull(getCookie(request, CART_ID)));
+    public Mono<Integer> getCartIdFromCookie(ServerHttpRequest request) {
+        return getCookieValue(request, CART_ID)
+                .map(Integer::parseInt);
     }
 
-    public void setCartIdCookie(HttpServletResponse response, Integer cartId) {
-        Cookie cookie = new Cookie(CART_ID, cartId.toString());
-        cookie.setPath("/");
-        response.addCookie(cookie);
+    public Mono<Void> setCartIdCookie(ServerHttpResponse response, Integer cartId) {
+        return Mono.fromRunnable(() -> {
+            ResponseCookie cookie = ResponseCookie.from(CART_ID, cartId.toString())
+                    .path("/")
+                    .httpOnly(true)
+                    .build();
+            response.addCookie(cookie);
+        });
     }
 
-    private String getCookie(HttpServletRequest request, String name) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if (cookie.getName().equals(name)) {
-                    return cookie.getValue();
-                }
-            }
-        }
-        return null;
+    private Mono<String> getCookieValue(ServerHttpRequest request, String name) {
+        return Mono.justOrEmpty(request.getCookies()
+                        .getFirst(name))
+                .map(HttpCookie::getValue)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("Cookie '" + name + "' not found")));
     }
 
 }

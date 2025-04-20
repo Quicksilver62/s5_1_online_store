@@ -120,7 +120,7 @@ public class ItemServiceTest {
 
         when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("cart_id", cartId.toString())});
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
-        when(cartService.gerCartItem(itemId, cartId)).thenReturn(cartItem);
+        when(cartService.getCartItem(itemId, cartId)).thenReturn(cartItem);
 
         ItemDto expectedDto = new ItemDto(1, "Test Item", "Desc 1", "/img1.jpg", 100.0,  2);
         when(itemMapper.toDto(item)).thenReturn(expectedDto);

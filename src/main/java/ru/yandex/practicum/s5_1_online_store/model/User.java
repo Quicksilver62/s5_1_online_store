@@ -1,26 +1,17 @@
 package ru.yandex.practicum.s5_1_online_store.model;
 
-import jakarta.persistence.*;
 import lombok.Getter;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 
-import java.util.List;
 import java.util.UUID;
 
 @Getter
-@Entity
-@Table(schema = "store", name = "users")
+@Table("store.users")
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private UUID id;
 
-    @Column(nullable = false)
     private String email;
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<Order> orders;
-
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    private Cart cart;
 }

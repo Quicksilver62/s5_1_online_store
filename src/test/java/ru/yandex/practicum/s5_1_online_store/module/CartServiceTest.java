@@ -1,32 +1,34 @@
 package ru.yandex.practicum.s5_1_online_store.module;
 
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.transaction.Transactional;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.yandex.practicum.s5_1_online_store.dto.ItemDto;
+import org.springframework.http.HttpCookie;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.s5_1_online_store.mappers.ItemMapper;
 import ru.yandex.practicum.s5_1_online_store.model.*;
 import ru.yandex.practicum.s5_1_online_store.repository.CartItemsRepository;
 import ru.yandex.practicum.s5_1_online_store.repository.CartRepository;
 import ru.yandex.practicum.s5_1_online_store.repository.ItemRepository;
-import ru.yandex.practicum.s5_1_online_store.repository.OrderRepository;
 import ru.yandex.practicum.s5_1_online_store.services.CartService;
+import ru.yandex.practicum.s5_1_online_store.services.OrderService;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class CartServiceTest {
+
+    @Mock
+    private OrderService orderService;
 
     @Mock
     private CartRepository cartRepository;
@@ -38,184 +40,173 @@ public class CartServiceTest {
     private ItemRepository itemRepository;
 
     @Mock
-    private OrderRepository orderRepository;
-
-    @Mock
     private ItemMapper itemMapper;
 
     @Mock
-    private HttpServletRequest request;
+    private ServerHttpRequest request;
 
     @InjectMocks
     private CartService cartService;
 
-    private User testUser;
-    private Cart testCart;
-    private Item testItem;
-    private CartItem testCartItem;
-
-    @BeforeEach
-    void setUp() {
-        testUser = new User();
-        testCart = Cart.builder().id(1).user(testUser).build();
-        testItem = new Item(1, "Test Item", "Desc 1", "/img1.jpg", 100.0, new HashSet<>(), new HashSet<>());
-        testCartItem = new CartItem(new CartItemId(1, 1), testItem, 1);
-        testCart.getCartItems().add(testCartItem);
-    }
-
     @Test
-    void getUserCart_WhenCartExists_ShouldReturnCart() {
-        when(cartRepository.findByUser(testUser)).thenReturn(Optional.of(testCart));
+    void getUserCart_NewCart_CreatesAndReturnsNewCart() {
+        UUID userId = UUID.randomUUID();
+        Cart newCart = Cart.builder().id(1).userId(userId).build();
 
-        Cart result = cartService.getUserCart(testUser);
+        when(cartRepository.findByUserId(userId)).thenReturn(Mono.empty());
+        when(cartRepository.save(any())).thenReturn(Mono.just(newCart));
 
-        assertEquals(testCart, result);
-        verify(cartRepository, never()).save(any());
-    }
-
-    @Test
-    void getUserCart_WhenCartNotExists_ShouldCreateNewCart() {
-        when(cartRepository.findByUser(testUser)).thenReturn(Optional.empty());
-        when(cartRepository.save(any(Cart.class))).thenReturn(testCart);
-
-        Cart result = cartService.getUserCart(testUser);
-
+        Cart result = cartService.getUserCart(userId).block();
         assertNotNull(result);
-        verify(cartRepository).save(any(Cart.class));
-    }
+        assertEquals(newCart, result);
 
-    @Test
-    void getCartById_ShouldReturnCart() {
-        when(cartRepository.findById(1)).thenReturn(Optional.of(testCart));
-
-        Cart result = cartService.getCartById(1);
-
-        assertEquals(testCart, result);
-    }
-
-    @Test
-    void getCartById_WhenNotFound_ShouldThrowException() {
-        when(cartRepository.findById(999)).thenReturn(Optional.empty());
-
-        assertThrows(IllegalArgumentException.class, () -> {
-            cartService.getCartById(999);
-        });
-    }
-
-    @Test
-    void addNewItemToCart_ShouldAddItem() {
-        when(cartRepository.save(testCart)).thenReturn(testCart);
-
-        cartService.addNewItemToCart(testCart, testItem);
-
-        assertEquals(2, testCart.getCartItems().size());
-        verify(cartRepository).save(testCart);
-    }
-
-    @Test
-    void addItemToCart_ShouldIncrementCount() {
-        cartService.addItemToCart(testCartItem);
-
-        assertEquals(2, testCartItem.getCount());
-        verify(cartItemsRepository).save(testCartItem);
-    }
-
-    @Test
-    void removeItemFromCart_ShouldDecrementCount() {
-        testCartItem.setCount(2);
-
-        cartService.removeItemFromCart(testCartItem);
-
-        assertEquals(1, testCartItem.getCount());
-        verify(cartItemsRepository).save(testCartItem);
-    }
-
-    @Test
-    void removeItemFromCart_WhenCountIsOne_ShouldDeleteItem() {
-        testCartItem.setCount(1);
-
-        cartService.removeItemFromCart(testCartItem);
-
-        verify(cartItemsRepository).delete(testCartItem);
-        verify(cartItemsRepository, never()).save(any());
-    }
-
-    @Test
-    void removeAllFromCart_ShouldDeleteItem() {
-        cartService.removeAllFromCart(testCartItem);
-
-        verify(cartItemsRepository).delete(testCartItem);
-    }
-
-    @Test
-    void getCartItems_ShouldReturnItemDtos() {
-        // Arrange
-        when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("cart_id", "1")});
-        when(cartRepository.findById(1)).thenReturn(Optional.of(testCart));
-
-        ItemDto itemDto = new ItemDto();
-        itemDto.setId(1);
-        itemDto.setCount(1);
-        when(itemMapper.toDto(testItem)).thenReturn(itemDto);
-
-        List<ItemDto> result = cartService.getCartItems(request);
-
-        assertEquals(1, result.size());
-        assertEquals(1, result.get(0).getId());
-    }
-
-    @Test
-    void handleItemAction_WithPlusAction_ShouldAddItem() {
-        when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("cart_id", "1")});
-        when(cartRepository.findById(1)).thenReturn(Optional.of(testCart));
-        Item item = new Item(2, "Test Item", "Desc 1", "/img1.jpg", 100.0, new HashSet<>(), new HashSet<>());
-        when(itemRepository.findById(2)).thenReturn(Optional.of(item));
-
-        cartService.handleItemAction("plus", 2, request);
-
+        verify(cartRepository).findByUserId(userId);
         verify(cartRepository).save(any());
     }
 
     @Test
-    void handleItemAction_WithMinusAction_ShouldDecrementCount() {
-        when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("cart_id", "1")});
-        when(cartRepository.findById(1)).thenReturn(Optional.of(testCart));
+    void getCartById_ExistingCart_ReturnsCart() {
+        Cart existingCart = Cart.builder().id(1).userId(UUID.randomUUID()).build();
 
-        cartService.handleItemAction("minus", 1, request);
+        when(cartRepository.findById(1)).thenReturn(Mono.just(existingCart));
 
-        verify(cartItemsRepository).delete(any());
+        Cart result = cartService.getCartById(1).block();
+        assertEquals(existingCart, result);
     }
 
     @Test
-    void handleItemAction_WithDeleteAction_ShouldRemoveItem() {
-        when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("cart_id", "1")});
-        when(cartRepository.findById(1)).thenReturn(Optional.of(testCart));
+    void getCartById_NonExistingCart_ReturnsNull() {
+        when(cartRepository.findById(1)).thenReturn(Mono.empty());
 
-        cartService.handleItemAction("delete", 1, request);
-
-        verify(cartItemsRepository).delete(any());
+        Cart result = cartService.getCartById(1).block();
+        assertNull(result);
     }
 
     @Test
-    void handleItemAction_WithUnknownAction_ShouldThrowException() {
-        when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("cart_id", "1")});
-        when(cartRepository.findById(1)).thenReturn(Optional.of(testCart));
+    void getCartItem_ExistingItem_ReturnsItem() {
+        CartItem cartItem = CartItem.builder()
+                .id(new CartItemId(1, 1))
+                .count(1)
+                .build();
 
-        assertThrows(IllegalArgumentException.class, () -> {
-            cartService.handleItemAction("unknown", 1, request);
+        when(cartItemsRepository.findById_ItemIdAndId_CartId(1, 1)).thenReturn(Mono.just(cartItem));
+
+        CartItem result = cartService.getCartItem(1, 1).block();
+        assertEquals(cartItem, result);
+    }
+
+    @Test
+    void addNewItemToCart_ValidActionAndItem_AddsItem() {
+        Item item = Item.builder().id(1).price(100.0).build();
+        when(itemRepository.findById(1)).thenReturn(Mono.just(item));
+        when(cartItemsRepository.save(any())).thenReturn(Mono.just(new CartItem()));
+
+        cartService.addNewItemToCart("plus", 1, 1).block();
+
+        verify(itemRepository).findById(1);
+        verify(cartItemsRepository).save(any());
+    }
+
+    @Test
+    void addNewItemToCart_InvalidAction_DoesNothing() {
+        cartService.addNewItemToCart("invalid", 1, 1).block();
+
+        verifyNoInteractions(itemRepository, cartItemsRepository);
+    }
+
+    @Test
+    void addNewItemToCart_NonExistingItem_ThrowsException() {
+        when(itemRepository.findById(1)).thenReturn(Mono.empty());
+
+        assertThrows(NoSuchElementException.class, () -> {
+            cartService.addNewItemToCart("plus", 1, 1).block();
         });
     }
 
     @Test
-    @Transactional
-    void buy_ShouldCreateOrderAndClearCart() {
-        when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("cart_id", "1")});
-        when(cartRepository.findById(1)).thenReturn(Optional.of(testCart));
-        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+    void addItemToCart_IncrementsCountAndSaves() {
+        CartItem cartItem = CartItem.builder()
+                .id(new CartItemId(1, 1))
+                .count(1)
+                .build();
 
-        cartService.buy(request);
+        when(cartItemsRepository.save(cartItem)).thenReturn(Mono.just(cartItem));
 
-        verify(orderRepository).save(any(Order.class));
-        assertTrue(testCart.getCartItems().isEmpty());
+        cartService.addItemToCart(cartItem).block();
+
+        assertEquals(2, cartItem.getCount());
+        verify(cartItemsRepository).save(cartItem);
+    }
+
+    @Test
+    void removeItemFromCart_CountGreaterThan1_DecrementsCount() {
+        CartItem cartItem = CartItem.builder()
+                .id(new CartItemId(1, 1))
+                .count(2)
+                .build();
+
+        when(cartItemsRepository.save(cartItem)).thenReturn(Mono.just(cartItem));
+
+        cartService.removeItemFromCart(cartItem).block();
+
+        assertEquals(1, cartItem.getCount());
+        verify(cartItemsRepository).save(cartItem);
+        verify(cartItemsRepository, never()).delete(any());
+    }
+
+    @Test
+    void removeItemFromCart_CountEquals1_DeletesItem() {
+        CartItem cartItem = CartItem.builder()
+                .id(new CartItemId(1, 1))
+                .count(1)
+                .build();
+
+        when(cartItemsRepository.delete(cartItem)).thenReturn(Mono.empty());
+
+        cartService.removeItemFromCart(cartItem).block();
+
+        verify(cartItemsRepository).delete(cartItem);
+        verify(cartItemsRepository, never()).save(any());
+    }
+
+    @Test
+    void removeAllFromCart_DeletesItem() {
+        CartItem cartItem = new CartItem();
+        when(cartItemsRepository.delete(cartItem)).thenReturn(Mono.empty());
+
+        cartService.removeAllFromCart(cartItem).block();
+
+        verify(cartItemsRepository).delete(cartItem);
+    }
+
+    @Test
+    void buy_CreatesOrderAndClearsCart() {
+        Integer cartId = 1;
+        UUID userId = UUID.randomUUID();
+        Cart cart = Cart.builder().id(cartId).userId(userId).build();
+
+        CartItem cartItem = CartItem.builder()
+                .id(new CartItemId(1, cartId))
+                .count(1)
+                .item(Item.builder().id(1).price(100.0).build())
+                .build();
+
+        HttpCookie cookie = new HttpCookie("cart_id", cartId.toString());
+        MultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
+        cookies.add("cart_id", cookie);
+
+        when(request.getCookies()).thenReturn(cookies);
+
+        when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
+        when(cartItemsRepository.findByCartIdWithItem(cartId)).thenReturn(Flux.just(cartItem));
+        when(orderService.saveOrder(userId, 100.0, List.of(cartItem))).thenReturn(Mono.just(new Order()));
+        when(cartItemsRepository.deleteAllById_CartId(cartId)).thenReturn(Mono.empty());
+
+        cartService.buy(request).block();
+
+        verify(cartRepository).findById(cartId);
+        verify(cartItemsRepository).findByCartIdWithItem(cartId);
+        verify(orderService).saveOrder(userId, 100.0, List.of(cartItem));
+        verify(cartItemsRepository).deleteAllById_CartId(cartId);
     }
 }

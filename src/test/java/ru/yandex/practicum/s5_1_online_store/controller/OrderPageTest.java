@@ -1,35 +1,36 @@
 package ru.yandex.practicum.s5_1_online_store.controller;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.s5_1_online_store.controllers.OrderController;
 import ru.yandex.practicum.s5_1_online_store.dto.ItemDto;
 import ru.yandex.practicum.s5_1_online_store.dto.OrderDto;
 import ru.yandex.practicum.s5_1_online_store.services.OrderService;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(OrderController.class)
+@WebFluxTest(OrderController.class)
 public class OrderPageTest {
 
     @Autowired
-    private MockMvc mockMvc;
+    private WebTestClient webTestClient;
 
     @MockitoBean
     private OrderService orderService;
@@ -52,68 +53,78 @@ public class OrderPageTest {
     }
 
     @Test
-    void ordersPage_ShouldReturnOrdersViewWithItems() throws Exception {
+    void ordersPage_ShouldReturnOrdersViewWithItems() {
         OrderDto order1 = createTestOrder(1, 2);
         OrderDto order2 = createTestOrder(2, 1);
-        List<OrderDto> mockOrders = List.of(order1, order2);
+        Flux<OrderDto> mockOrders = Flux.just(order1, order2);
 
-        when(orderService.getOrders(any(HttpServletRequest.class))).thenReturn(mockOrders);
+        when(orderService.getOrders(any(ServerHttpRequest.class))).thenReturn(mockOrders);
 
-        mockMvc.perform(get("/orders"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("orders"))
-                .andExpect(model().attributeExists("orders"))
-                .andExpect(model().attribute("orders", hasSize(2)))
-                .andExpect(model().attribute("orders", hasItem(
-                        allOf(
-                                hasProperty("id", is(1)),
-                                hasProperty("totalSum", is(300.0)),
-                                hasProperty("items", hasSize(2))
-                        ))));
+        webTestClient.get()
+                .uri("/orders")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentType(MediaType.TEXT_HTML)
+                .expectBody(String.class).consumeWith(response -> {
+                    String body = response.getResponseBody();
+                    assertNotNull(body);
+                    assertTrue(body.contains("<td>Item 1 (1 шт.) 100.0 руб.</td>"));
+                    assertTrue(body.contains("<td>Item 2 (1 шт.) 200.0 руб.</td>"));
+                    assertTrue(body.contains("<b>Сумма: 300.0 руб.</b>"));
+                });
     }
 
     @Test
-    void orderPage_ShouldReturnOrderWithItems() throws Exception {
+    void orderPage_ShouldReturnOrderWithItems() {
         OrderDto mockOrder = createTestOrder(1, 3);
-        when(orderService.getOrder(eq(1), any(HttpServletRequest.class))).thenReturn(mockOrder);
+        when(orderService.getOrder(eq(1), any(ServerHttpRequest.class))).thenReturn(Mono.just(mockOrder));
 
-        mockMvc.perform(get("/orders/1"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("order"))
-                .andExpect(model().attributeExists("order"))
-                .andExpect(model().attribute("order",
-                        allOf(
-                                hasProperty("id", is(1)),
-                                hasProperty("items", hasSize(3)),
-                                hasProperty("totalSum", is(600.0))
-                        )
-                ));
+        webTestClient.get()
+                .uri("/orders/1")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentType(MediaType.TEXT_HTML)
+                .expectBody(String.class).consumeWith(response -> {
+                    String body = response.getResponseBody();
+                    assertNotNull(body);
+                    assertTrue(body.contains("<b>Item 1</b>"));
+                    assertTrue(body.contains("<b>Item 2</b>"));
+                    assertTrue(body.contains("<b>Item 3</b>"));
+                    assertTrue(body.contains("<h3>Сумма: 600.0 руб.</h3>"));
+                });
     }
 
     @Test
-    void orderPage_WhenEmptyOrder_ShouldReturnView() throws Exception {
+    void orderPage_WhenEmptyOrder_ShouldReturnView() {
         OrderDto emptyOrder = new OrderDto(1, new HashSet<>(), 0.0);
-        when(orderService.getOrder(eq(1), any(HttpServletRequest.class))).thenReturn(emptyOrder);
+        when(orderService.getOrder(eq(1), any(ServerHttpRequest.class))).thenReturn(Mono.just(emptyOrder));
 
-        mockMvc.perform(get("/orders/1"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("order"))
-                .andExpect(model().attribute("order",
-                        allOf(
-                                hasProperty("id", is(1)),
-                                hasProperty("items", empty()),
-                                hasProperty("totalSum", is(0.0))
-                        )
-                ));
+        webTestClient.get()
+                .uri("/orders/1")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentType(MediaType.TEXT_HTML)
+                .expectBody(String.class).consumeWith(response -> {
+                    String body = response.getResponseBody();
+                    assertNotNull(body);
+                    assertTrue(body.contains("<h3>Сумма: 0.0 руб.</h3>"));
+                });
     }
 
     @Test
     void orderPage_WhenOrderNotFound_ShouldReturnNotFound() throws Exception {
-        when(orderService.getOrder(eq(999), any(HttpServletRequest.class)))
+        when(orderService.getOrder(eq(999), any(ServerHttpRequest.class)))
                 .thenThrow(new NoSuchElementException("Order not found"));
 
-        mockMvc.perform(get("/orders/999"))
-                .andExpect(status().isNotFound())
-                .andExpect(view().name("not-found.html"));
+        webTestClient.get()
+                .uri("/orders/999")
+                .exchange()
+                .expectStatus().is4xxClientError()
+                .expectHeader().contentType(MediaType.TEXT_HTML)
+                .expectBody(String.class).consumeWith(response -> {
+                    String body = response.getResponseBody();
+                    assertNotNull(body);
+                    assertTrue(body.contains("<title>Страница не найдена - 404</title>"));
+                });
     }
 }

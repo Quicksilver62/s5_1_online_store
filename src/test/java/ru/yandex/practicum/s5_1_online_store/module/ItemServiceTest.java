@@ -1,28 +1,28 @@
 package ru.yandex.practicum.s5_1_online_store.module;
 
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
+import org.springframework.http.HttpCookie;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.util.LinkedMultiValueMap;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.s5_1_online_store.dto.ItemDto;
 import ru.yandex.practicum.s5_1_online_store.mappers.ItemMapper;
-import ru.yandex.practicum.s5_1_online_store.model.Cart;
-import ru.yandex.practicum.s5_1_online_store.model.CartItem;
-import ru.yandex.practicum.s5_1_online_store.model.Item;
-import ru.yandex.practicum.s5_1_online_store.model.User;
+import ru.yandex.practicum.s5_1_online_store.model.*;
+import ru.yandex.practicum.s5_1_online_store.repository.CartItemsRepository;
 import ru.yandex.practicum.s5_1_online_store.repository.ItemRepository;
 import ru.yandex.practicum.s5_1_online_store.services.CartService;
 import ru.yandex.practicum.s5_1_online_store.services.ItemService;
 
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,100 +40,123 @@ public class ItemServiceTest {
     private ItemMapper itemMapper;
 
     @Mock
-    private HttpServletRequest request;
+    private CartItemsRepository cartItemsRepository;
 
     @Mock
-    private HttpServletResponse response;
+    private ServerHttpRequest request;
+
+    @Mock
+    private ServerHttpResponse response;
 
     @InjectMocks
     private ItemService itemService;
 
     @Test
-    void getItems_ShouldReturnItemsWithCartCounts() {
-        UUID userId = UUID.randomUUID();
-        User user = new User();
-        Cart cart = Cart.builder()
-                .id(1)
-                .user(user)
-                .build();
+    void getItems_WithValidCookies_ReturnsSliceOfItems() {
+        String userId = UUID.randomUUID().toString();
+        Integer cartId = 1;
         Pageable pageable = PageRequest.of(0, 10);
 
-        when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("user_id", userId.toString())});
-        when(cartService.getUserCart(user)).thenReturn(cart);
+        HttpCookie userIdCookie = new HttpCookie("user_id", userId);
+        LinkedMultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
+        cookies.add("user_id", userIdCookie);
+        when(request.getCookies()).thenReturn(cookies);
 
-        Item item1 = new Item(1, "Item 1", "Desc 1", "/img1.jpg", 100.0, Set.of(cart), new HashSet<>());
-        Item item2 = new Item(2, "Item 2", "Desc 2", "/img2.jpg", 200.0, Set.of(cart), new HashSet<>());
-        cart.addItem(item1, 1);
-        cart.addItem(item2, 2);
-        Page<Item> itemPage = new PageImpl<>(List.of(item1, item2), pageable, 2);
+        Cart cart = Cart.builder().id(cartId).userId(UUID.fromString(userId)).build();
+        when(cartService.getUserCart(any())).thenReturn(Mono.just(cart));
 
-        when(itemRepository.findAll(pageable)).thenReturn(itemPage);
+        Item item1 = Item.builder().id(1).title("Item 1").price(100.0).build();
+        Item item2 = Item.builder().id(2).title("Item 2").price(200.0).build();
+        when(itemRepository.findAllBy(pageable)).thenReturn(Flux.just(item1, item2));
+        when(itemRepository.count()).thenReturn(Mono.just(2L));
 
-        ItemDto itemDto1 = new ItemDto(1, "Item 1", "Desc 1", "/img1.jpg", 100.0,  3);
-        ItemDto itemDto2 = new ItemDto(2, "Item 2", "Desc 2", "/img2.jpg", 200.0, 0);
-        when(itemMapper.toDto(item1)).thenReturn(itemDto1);
-        when(itemMapper.toDto(item2)).thenReturn(itemDto2);
+        when(cartItemsRepository.findById_ItemIdAndId_CartId(cartId, 1))
+                .thenReturn(Mono.just(CartItem.builder().count(1).build()));
+        when(cartItemsRepository.findById_ItemIdAndId_CartId(cartId, 2))
+                .thenReturn(Mono.empty());
 
-        Slice<ItemDto> result = itemService.getItems(request, response, pageable);
+        ItemDto dto1 = ItemDto.builder().id(1).title("Item 1").price(100.0).count(1).build();
+        ItemDto dto2 = ItemDto.builder().id(2).title("Item 2").price(200.0).count(0).build();
+        when(itemMapper.toDto(item1)).thenReturn(dto1);
+        when(itemMapper.toDto(item2)).thenReturn(dto2);
 
+        Slice<ItemDto> result = itemService.getItems(request, response, pageable).block();
+
+        assertNotNull(result);
         assertEquals(2, result.getContent().size());
         assertEquals(1, result.getContent().get(0).getCount());
-        assertEquals(2, result.getContent().get(1).getCount());
+        assertEquals(0, result.getContent().get(1).getCount());
+
         verify(response).addCookie(any());
+        verify(cartService).getUserCart(any());
     }
 
     @Test
-    void handleItemAction_ShouldUpdateCartAndReturnItems() {
+    void handleItemAction_ValidAction_UpdatesItemAndReturnsSlice() {
         Integer cartId = 1;
         Integer itemId = 1;
+        String action = "plus";
         Pageable pageable = PageRequest.of(0, 10);
-        Cart cart = new Cart();
 
-        when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("cart_id", cartId.toString())});
-        when(cartService.getCartById(cartId)).thenReturn(cart);
+        HttpCookie cartCookie = new HttpCookie("cart_id", cartId.toString());
+        LinkedMultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
+        cookies.add("cart_id", cartCookie);
+        when(request.getCookies()).thenReturn(cookies);
 
-        Item item = new Item(1, "Item 1", "Desc 1", "/img1.jpg", 100.0, new HashSet<>(), new HashSet<>());
-        Page<Item> itemPage = new PageImpl<>(List.of(item), pageable, 1);
-        when(itemRepository.findAll(pageable)).thenReturn(itemPage);
+        when(cartService.handleItemAction(action, itemId, request)).thenReturn(Mono.empty());
 
-        ItemDto itemDto = new ItemDto(1, "Item 1", "Desc 1", "/img1.jpg", 100.0,  1);
-        when(itemMapper.toDto(item)).thenReturn(itemDto);
+        Item item = Item.builder().id(itemId).title("Item 1").price(100.0).build();
+        when(itemRepository.findAllBy(pageable)).thenReturn(Flux.just(item));
+        when(itemRepository.count()).thenReturn(Mono.just(1L));
 
-        Slice<ItemDto> result = itemService.handleItemAction("plus", itemId, request, pageable);
+        when(cartItemsRepository.findById_ItemIdAndId_CartId(cartId, itemId))
+                .thenReturn(Mono.just(CartItem.builder().count(2).build()));
 
+        ItemDto dto = ItemDto.builder().id(itemId).title("Item 1").price(100.0).count(2).build();
+        when(itemMapper.toDto(item)).thenReturn(dto);
+
+        Slice<ItemDto> result = itemService.handleItemAction(action, itemId, request, pageable).block();
+
+        assertNotNull(result);
         assertEquals(1, result.getContent().size());
-        verify(cartService).handleItemAction("plus", itemId, request);
+        assertEquals(2, result.getContent().getFirst().getCount());
+
+        verify(cartService).handleItemAction(action, itemId, request);
     }
 
     @Test
-    void getItem_ShouldReturnItemWithCartCount() {
+    void getItem_WithExistingItem_ReturnsItemDto() {
         Integer itemId = 1;
         Integer cartId = 1;
-        Item item = new Item(1, "Test Item", "Desc 1", "/img1.jpg", 100.0, new HashSet<>(), new HashSet<>());
-        CartItem cartItem = new CartItem();
-        cartItem.setCount(2);
 
-        when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("cart_id", cartId.toString())});
-        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
-        when(cartService.getCartItem(itemId, cartId)).thenReturn(cartItem);
+        HttpCookie cartCookie = new HttpCookie("cart_id", cartId.toString());
+        LinkedMultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
+        cookies.add("cart_id", cartCookie);
+        when(request.getCookies()).thenReturn(cookies);
 
-        ItemDto expectedDto = new ItemDto(1, "Test Item", "Desc 1", "/img1.jpg", 100.0,  2);
+        Item item = Item.builder().id(itemId).title("Item 1").price(100.0).build();
+        when(itemRepository.findById(itemId)).thenReturn(Mono.just(item));
+
+        CartItem cartItem = CartItem.builder().id(new CartItemId(itemId, cartId)).count(1).build();
+        when(cartService.getCartItem(itemId, cartId)).thenReturn(Mono.just(cartItem));
+
+        ItemDto expectedDto = ItemDto.builder().id(itemId).title("Item 1").price(100.0).count(1).build();
         when(itemMapper.toDto(item)).thenReturn(expectedDto);
 
-        ItemDto result = itemService.getItem(itemId, request);
+        ItemDto result = itemService.getItem(itemId, request).block();
 
-        assertEquals(2, result.getCount());
-        assertEquals("Test Item", result.getTitle());
+        assertNotNull(result);
+        assertEquals(itemId, result.getId());
+        assertEquals(1, result.getCount());
     }
 
     @Test
-    void getItem_WhenItemNotFound_ShouldThrowException() {
-        Integer itemId = 999;
-        when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("cart_id", "1")});
-        when(itemRepository.findById(itemId)).thenReturn(Optional.empty());
+    void getItems_WithMissingUserIdCookie_ThrowsException() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(request.getCookies()).thenReturn(new LinkedMultiValueMap<>());
 
-        assertThrows(NoSuchElementException.class, () -> {
-            itemService.getItem(itemId, request);
+        assertThrows(IllegalArgumentException.class, () -> {
+            itemService.getItems(request, response, pageable).block();
         });
     }
 }

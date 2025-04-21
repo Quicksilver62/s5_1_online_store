@@ -1,6 +1,7 @@
 package ru.yandex.practicum.s5_1_online_store.controllers;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -23,9 +24,11 @@ public class MainController {
     public Mono<String> mainPage(Model model,
                                 @RequestParam(required = false) String search,
                                 @RequestParam(required = false) String sort,
-                                @PageableDefault(size = 10) Pageable pageable,
+                                @RequestParam(defaultValue = "0") int page,
+                                @RequestParam(defaultValue = "10") int size,
                                 ServerHttpRequest request,
                                 ServerHttpResponse response) {
+        Pageable pageable = PageRequest.of(page, size);
         return itemService.getItems(request, response, pageable)
                 .doOnSuccess(items -> {
                     model.addAttribute("items", items.getContent());
@@ -42,8 +45,10 @@ public class MainController {
                                    Model model,
                                    @RequestParam(required = false) String search,
                                    @RequestParam(required = false) String sort,
-                                   @PageableDefault(size = 10) Pageable pageable,
+                                   @RequestParam(defaultValue = "0") int page,
+                                   @RequestParam(defaultValue = "10") int size,
                                    ServerHttpRequest request) {
+        Pageable pageable = PageRequest.of(page, size);
         return itemService.handleItemAction(action, itemId, request, pageable)
                 .doOnSuccess(items -> {
                     model.addAttribute("items", items.getContent());

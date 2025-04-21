@@ -12,7 +12,6 @@ import ru.yandex.practicum.s5_1_online_store.mappers.ItemMapper;
 import ru.yandex.practicum.s5_1_online_store.model.*;
 import ru.yandex.practicum.s5_1_online_store.repository.*;
 
-import java.time.LocalDateTime;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -20,12 +19,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CartService {
 
+    private final OrderService orderService;
     private final CartRepository cartRepository;
     private final CartItemsRepository cartItemsRepository;
     private final ItemMapper itemMapper;
     private final ItemRepository itemRepository;
-    private final OrderRepository orderRepository;
-    private final OrderItemsRepository orderItemsRepository;
 
     public Mono<Cart> getUserCart(UUID userId) {
         return cartRepository.findByUserId(userId)
@@ -116,24 +114,7 @@ public class CartService {
                     double totalSum = cartItems.stream()
                             .mapToDouble(ci -> ci.getItem().getPrice() * ci.getCount())
                             .sum();
-
-                    return orderRepository.save(Order.builder()
-                                    .userId(cart.getUserId())
-                                    .totalSum(totalSum)
-                                    .createdAt(LocalDateTime.now())
-                                    .build())
-                            .flatMap(savedOrder ->
-                                    orderItemsRepository.saveAll(
-                                            cartItems.stream()
-                                                    .map(ci -> new OrderItem(
-                                                            new OrderItemId(ci.getId().getItemId(), savedOrder.getId()),
-                                                            ci.getCount(),
-                                                            ci.getItem()
-                                                    ))
-                                                    .toList()
-                                            )
-                                            .then(Mono.just(savedOrder))
-                            );
+                    return orderService.saveOrder(cart.getUserId(), totalSum, cartItems);
                 });
     }
 }

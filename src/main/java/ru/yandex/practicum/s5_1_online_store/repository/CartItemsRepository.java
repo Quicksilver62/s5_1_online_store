@@ -13,7 +13,11 @@ public interface CartItemsRepository extends ReactiveCrudRepository<CartItem, Ca
 
     Mono<CartItem> findById_ItemIdAndId_CartId(Integer itemId, Integer cartId);
 
-    @Query("SELECT ci FROM CartItem ci JOIN FETCH ci.item WHERE ci.id.cartId = :cartId")
+    @Query("""
+        SELECT cart_items.*, items.* FROM store.cart_items 
+        JOIN store.items ON cart_items.item_id = items.id 
+        WHERE cart_items.cart_id = :cartId
+        """)
     Flux<CartItem> findByCartIdWithItem(Integer cartId);
 
     Mono<Void> deleteAllById_CartId(Integer cartId);

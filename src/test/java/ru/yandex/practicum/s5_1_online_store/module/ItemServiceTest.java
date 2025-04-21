@@ -18,7 +18,6 @@ import ru.yandex.practicum.s5_1_online_store.model.User;
 import ru.yandex.practicum.s5_1_online_store.repository.ItemRepository;
 import ru.yandex.practicum.s5_1_online_store.services.CartService;
 import ru.yandex.practicum.s5_1_online_store.services.ItemService;
-import ru.yandex.practicum.s5_1_online_store.services.UserService;
 
 import java.util.*;
 
@@ -33,9 +32,6 @@ public class ItemServiceTest {
 
     @Mock
     private ItemRepository itemRepository;
-
-    @Mock
-    private UserService userService;
 
     @Mock
     private CartService cartService;
@@ -63,7 +59,6 @@ public class ItemServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
 
         when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("user_id", userId.toString())});
-        when(userService.getUser(userId)).thenReturn(user);
         when(cartService.getUserCart(user)).thenReturn(cart);
 
         Item item1 = new Item(1, "Item 1", "Desc 1", "/img1.jpg", 100.0, Set.of(cart), new HashSet<>());

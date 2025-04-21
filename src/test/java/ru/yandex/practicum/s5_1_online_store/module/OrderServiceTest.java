@@ -11,11 +11,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.yandex.practicum.s5_1_online_store.dto.ItemDto;
 import ru.yandex.practicum.s5_1_online_store.dto.OrderDto;
 import ru.yandex.practicum.s5_1_online_store.mappers.ItemMapper;
-import ru.yandex.practicum.s5_1_online_store.mappers.OrderMapper;
 import ru.yandex.practicum.s5_1_online_store.model.*;
 import ru.yandex.practicum.s5_1_online_store.repository.OrderRepository;
 import ru.yandex.practicum.s5_1_online_store.services.OrderService;
-import ru.yandex.practicum.s5_1_online_store.services.UserService;
 
 import java.util.*;
 
@@ -29,13 +27,7 @@ public class OrderServiceTest {
     private OrderRepository orderRepository;
 
     @Mock
-    private UserService userService;
-
-    @Mock
     private ItemMapper itemMapper;
-
-    @Mock
-    private OrderMapper orderMapper;
 
     @Mock
     private HttpServletRequest request;
@@ -52,7 +44,6 @@ public class OrderServiceTest {
     void setUp() {
         testOrderDto.setId(1);
         when(request.getCookies()).thenReturn(new Cookie[]{new Cookie("user_id", testUserId.toString())});
-        when(userService.getUser(testUserId)).thenReturn(testUser);
     }
 
     @Test
@@ -61,15 +52,12 @@ public class OrderServiceTest {
         Order order2 = Order.builder().id(2).build();
 
         when(orderRepository.findAllByUser(testUser)).thenReturn(List.of(order1, order2));
-        when(orderMapper.toDto(order1)).thenReturn(new OrderDto(1, Set.of(), 100.0));
-        when(orderMapper.toDto(order2)).thenReturn(new OrderDto(2, Set.of(), 200.0));
 
         List<OrderDto> result = orderService.getOrders(request);
 
         assertEquals(2, result.size());
         assertEquals(1, result.get(0).getId());
         assertEquals(2, result.get(1).getId());
-        verify(orderMapper, times(2)).toDto(any());
     }
 
     @Test
@@ -79,7 +67,6 @@ public class OrderServiceTest {
         testOrder.setOrderItems(Set.of(orderItem));
 
         when(orderRepository.findByUser(testUser)).thenReturn(Optional.of(testOrder));
-        when(orderMapper.toDto(testOrder)).thenReturn(testOrderDto);
 
         ItemDto itemDto = new ItemDto(1, "Test Item", "Desc 1", "/img1.jpg", 100.0,  3);
         when(itemMapper.toDto(item)).thenReturn(itemDto);

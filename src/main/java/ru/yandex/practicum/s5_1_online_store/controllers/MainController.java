@@ -1,15 +1,14 @@
 package ru.yandex.practicum.s5_1_online_store.controllers;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import ru.yandex.practicum.s5_1_online_store.dto.ItemDto;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.s5_1_online_store.helpers.PageableWrapper;
 import ru.yandex.practicum.s5_1_online_store.services.ItemService;
 
@@ -21,37 +20,37 @@ public class MainController {
     private final ItemService itemService;
 
     @GetMapping
-    public String mainPage(Model model,
-                           @RequestParam(required = false) String search,
-                           @RequestParam(required = false) String sort,
-                           @PageableDefault(size = 10) Pageable pageable,
-                           HttpServletRequest request,
-                           HttpServletResponse response) {
-
-        Slice<ItemDto> items = itemService.getItems(request, response, pageable);
-
-        model.addAttribute("items", items.getContent());
-        model.addAttribute("paging", new PageableWrapper(pageable, items.hasNext()));
-        model.addAttribute("search", search);
-        model.addAttribute("sort", sort);
-
-        return "main";
+    public Mono<String> mainPage(Model model,
+                                @RequestParam(required = false) String search,
+                                @RequestParam(required = false) String sort,
+                                @PageableDefault(size = 10) Pageable pageable,
+                                ServerHttpRequest request,
+                                ServerHttpResponse response) {
+        return itemService.getItems(request, response, pageable)
+                .doOnSuccess(items -> {
+                    model.addAttribute("items", items.getContent());
+                    model.addAttribute("paging", new PageableWrapper(pageable, items.hasNext()));
+                    model.addAttribute("search", search);
+                    model.addAttribute("sort", sort);
+                })
+                .thenReturn("main");
     }
 
     @PostMapping("/{itemId}")
-    public String handleItemAction(@RequestParam String action,
+    public Mono<String> handleItemAction(@RequestParam String action,
                                    @PathVariable("itemId") Integer itemId,
                                    Model model,
                                    @RequestParam(required = false) String search,
                                    @RequestParam(required = false) String sort,
                                    @PageableDefault(size = 10) Pageable pageable,
-                                   HttpServletRequest request) {
-        Slice<ItemDto> items = itemService.handleItemAction(action, itemId, request, pageable);
-
-        model.addAttribute("items", items.getContent());
-        model.addAttribute("paging", new PageableWrapper(pageable, items.hasNext()));
-        model.addAttribute("search", search);
-        model.addAttribute("sort", sort);
-        return "main";
+                                   ServerHttpRequest request) {
+        return itemService.handleItemAction(action, itemId, request, pageable)
+                .doOnSuccess(items -> {
+                    model.addAttribute("items", items.getContent());
+                    model.addAttribute("paging", new PageableWrapper(pageable, items.hasNext()));
+                    model.addAttribute("search", search);
+                    model.addAttribute("sort", sort);
+                })
+                .thenReturn("main");
     }
 }

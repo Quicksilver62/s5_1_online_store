@@ -13,3 +13,5 @@ create table if not exists store.order_items
     count           integer,
     constraint pk_order_items primary key (order_id, item_id)
     );
+
+create index if not exists idx_order_items_order_id on store.order_items(order_id);

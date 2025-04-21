@@ -11,3 +11,5 @@ create table if not exists store.cart_items
     count           integer,
     constraint pk_cart_items primary key (cart_id, item_id)
 );
+
+create index if not exists idx_cart_items_cart_id on store.cart_items(cart_id);

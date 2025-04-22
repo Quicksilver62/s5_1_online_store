@@ -8,7 +8,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.s5_1_online_store.dto.ItemDto;
 import ru.yandex.practicum.s5_1_online_store.helpers.Helper;
-import ru.yandex.practicum.s5_1_online_store.mappers.ItemMapper;
 import ru.yandex.practicum.s5_1_online_store.model.*;
 import ru.yandex.practicum.s5_1_online_store.repository.*;
 
@@ -22,7 +21,6 @@ public class CartService {
     private final OrderService orderService;
     private final CartRepository cartRepository;
     private final CartItemsRepository cartItemsRepository;
-    private final ItemMapper itemMapper;
     private final ItemRepository itemRepository;
 
     public Mono<Cart> getUserCart(UUID userId) {
@@ -40,7 +38,7 @@ public class CartService {
     }
 
     public Mono<CartItem> getCartItem(Integer itemId, Integer cartId) {
-        return cartItemsRepository.findById_ItemIdAndId_CartId(itemId, cartId);
+        return cartItemsRepository.findByItemIdAndCartId(itemId, cartId);
     }
 
     public Mono<Void> addNewItemToCart(String action, Integer itemId, Integer cartId) {
@@ -51,7 +49,8 @@ public class CartService {
                 .switchIfEmpty(Mono.error(new NoSuchElementException("Item not found")))
                 .flatMap(item -> {
                     CartItem newCartItem = CartItem.builder()
-                            .id(new CartItemId(itemId, cartId))
+                            .cartId(cartId)
+                            .itemId(itemId)
                             .count(1)
                             .build();
                     return cartItemsRepository.save(newCartItem).then();
@@ -78,16 +77,19 @@ public class CartService {
     public Flux<ItemDto> getCartItems(ServerHttpRequest request) {
         return Helper.getCartIdFromCookie(request)
                 .flatMapMany(cartItemsRepository::findByCartIdWithItem)
-                .map(cartItem -> {
-                    ItemDto dto = itemMapper.toDto(cartItem.getItem());
-                    dto.setCount(cartItem.getCount());
-                    return dto;
-                });
+                .map(cartItemWithItem -> ItemDto.builder()
+                        .id(cartItemWithItem.getItemId())
+                        .title(cartItemWithItem.getItemTitle())
+                        .description(cartItemWithItem.getItemDescription())
+                        .imgPath(cartItemWithItem.getItemImgPath())
+                        .price(cartItemWithItem.getItemPrice())
+                        .count(cartItemWithItem.getCount())
+                        .build());
     }
 
     public Mono<Void> handleItemAction(String action, Integer itemId, ServerHttpRequest request) {
         return Helper.getCartIdFromCookie(request)
-                .flatMap(cartId -> cartItemsRepository.findById_ItemIdAndId_CartId(itemId, cartId)
+                .flatMap(cartId -> cartItemsRepository.findByItemIdAndCartId(itemId, cartId)
                         .flatMap(cartItem -> switch (action.toLowerCase()) {
                             case "plus" -> addItemToCart(cartItem);
                             case "minus" -> removeItemFromCart(cartItem);
@@ -103,16 +105,23 @@ public class CartService {
         return Helper.getCartIdFromCookie(request)
                 .flatMap(this::getCartById)
                 .flatMap(cart -> createOrderFromCart(cart)
-                        .then(cartItemsRepository.deleteAllById_CartId(cart.getId()))
+                        .then(cartItemsRepository.deleteAllByCartId(cart.getId()))
                 );
     }
 
     private Mono<Order> createOrderFromCart(Cart cart) {
         return cartItemsRepository.findByCartIdWithItem(cart.getId())
                 .collectList()
-                .flatMap(cartItems -> {
-                    double totalSum = cartItems.stream()
-                            .mapToDouble(ci -> ci.getItem().getPrice() * ci.getCount())
+                .flatMap(cartItemsWithItems -> {
+                    var cartItems = cartItemsWithItems.stream()
+                            .map(cartItemWithItem -> CartItem.builder()
+                                    .cartId(cartItemWithItem.getCartId())
+                                    .itemId(cartItemWithItem.getItemId())
+                                    .count(cartItemWithItem.getCount())
+                                    .build())
+                            .toList();
+                    double totalSum = cartItemsWithItems.stream()
+                            .mapToDouble(ci -> ci.getItemPrice() * ci.getCount())
                             .sum();
                     return orderService.saveOrder(cart.getUserId(), totalSum, cartItems);
                 });

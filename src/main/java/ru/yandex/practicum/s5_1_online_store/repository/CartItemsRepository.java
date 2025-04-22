@@ -6,19 +6,27 @@ import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.s5_1_online_store.model.CartItem;
-import ru.yandex.practicum.s5_1_online_store.model.CartItemId;
+import ru.yandex.practicum.s5_1_online_store.model.CartItemWithItem;
 
 @Repository
-public interface CartItemsRepository extends ReactiveCrudRepository<CartItem, CartItemId> {
+public interface CartItemsRepository extends ReactiveCrudRepository<CartItem, Integer> {
 
-    Mono<CartItem> findById_ItemIdAndId_CartId(Integer itemId, Integer cartId);
+    Mono<CartItem> findByItemIdAndCartId(Integer itemId, Integer cartId);
 
     @Query("""
-        SELECT cart_items.*, items.* FROM store.cart_items 
+        SELECT
+            cart_items.cart_id as cart_id,
+            cart_items.item_id as item_id,
+            cart_items.count,
+            items.title,
+            items.description,
+            items.img_path,
+            items.price
+        FROM store.cart_items
         JOIN store.items ON cart_items.item_id = items.id 
         WHERE cart_items.cart_id = :cartId
         """)
-    Flux<CartItem> findByCartIdWithItem(Integer cartId);
+    Flux<CartItemWithItem> findByCartIdWithItem(Integer cartId);
 
-    Mono<Void> deleteAllById_CartId(Integer cartId);
+    Mono<Void> deleteAllByCartId(Integer cartId);
 }

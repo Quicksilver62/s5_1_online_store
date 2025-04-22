@@ -94,12 +94,14 @@ public class OrderServiceTest {
         Item item1 = Item.builder().id(1).price(100.0).build();
         Item item2 = Item.builder().id(2).price(200.0).build();
         CartItem cartItem1 = CartItem.builder()
-                .id(new CartItemId(1, 1))
+                .cartId(1)
+                .itemId(1)
                 .count(1)
                 .item(item1)
                 .build();
         CartItem cartItem2 = CartItem.builder()
-                .id(new CartItemId(2, 1))
+                .cartId(2)
+                .itemId(1)
                 .count(1)
                 .item(item2)
                 .build();
@@ -135,19 +137,22 @@ public class OrderServiceTest {
     }
 
     private void mockOrderDtoConversion(Order order, List<Integer> itemIds) {
-        List<OrderItem> orderItems = itemIds.stream()
+        List<OrderItemWithItem> projections = itemIds.stream()
                 .map(id -> {
-                    Item item = Item.builder().id(id).price(100.0).build();
-                    return new OrderItem(new OrderItemId(id, order.getId()), 1, item);
+                    OrderItemWithItem projection = mock(OrderItemWithItem.class);
+                    when(projection.getOrderId()).thenReturn(order.getId());
+                    when(projection.getItemId()).thenReturn(id);
+                    when(projection.getCount()).thenReturn(1);
+                    return projection;
                 })
                 .collect(Collectors.toList());
 
         when(orderItemsRepository.findByOrderIdWithItem(order.getId()))
-                .thenReturn(Flux.fromIterable(orderItems));
+                .thenReturn(Flux.fromIterable(projections));
 
         itemIds.forEach(id -> {
             ItemDto itemDto = ItemDto.builder().id(id).price(100.0).build();
-            when(itemMapper.toDto(any())).thenReturn(itemDto);
+            lenient().when(itemMapper.toDto(any())).thenReturn(itemDto);
         });
     }
 }

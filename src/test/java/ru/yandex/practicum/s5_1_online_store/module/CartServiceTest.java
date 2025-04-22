@@ -11,7 +11,6 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import ru.yandex.practicum.s5_1_online_store.mappers.ItemMapper;
 import ru.yandex.practicum.s5_1_online_store.model.*;
 import ru.yandex.practicum.s5_1_online_store.repository.CartItemsRepository;
 import ru.yandex.practicum.s5_1_online_store.repository.CartRepository;
@@ -38,9 +37,6 @@ public class CartServiceTest {
 
     @Mock
     private ItemRepository itemRepository;
-
-    @Mock
-    private ItemMapper itemMapper;
 
     @Mock
     private ServerHttpRequest request;
@@ -85,11 +81,12 @@ public class CartServiceTest {
     @Test
     void getCartItem_ExistingItem_ReturnsItem() {
         CartItem cartItem = CartItem.builder()
-                .id(new CartItemId(1, 1))
+                .itemId(1)
+                .cartId(1)
                 .count(1)
                 .build();
 
-        when(cartItemsRepository.findById_ItemIdAndId_CartId(1, 1)).thenReturn(Mono.just(cartItem));
+        when(cartItemsRepository.findByItemIdAndCartId(1, 1)).thenReturn(Mono.just(cartItem));
 
         CartItem result = cartService.getCartItem(1, 1).block();
         assertEquals(cartItem, result);
@@ -126,7 +123,8 @@ public class CartServiceTest {
     @Test
     void addItemToCart_IncrementsCountAndSaves() {
         CartItem cartItem = CartItem.builder()
-                .id(new CartItemId(1, 1))
+                .cartId(1)
+                .itemId(1)
                 .count(1)
                 .build();
 
@@ -141,7 +139,8 @@ public class CartServiceTest {
     @Test
     void removeItemFromCart_CountGreaterThan1_DecrementsCount() {
         CartItem cartItem = CartItem.builder()
-                .id(new CartItemId(1, 1))
+                .cartId(1)
+                .itemId(1)
                 .count(2)
                 .build();
 
@@ -157,7 +156,8 @@ public class CartServiceTest {
     @Test
     void removeItemFromCart_CountEquals1_DeletesItem() {
         CartItem cartItem = CartItem.builder()
-                .id(new CartItemId(1, 1))
+                .cartId(1)
+                .itemId(1)
                 .count(1)
                 .build();
 
@@ -185,28 +185,32 @@ public class CartServiceTest {
         UUID userId = UUID.randomUUID();
         Cart cart = Cart.builder().id(cartId).userId(userId).build();
 
-        CartItem cartItem = CartItem.builder()
-                .id(new CartItemId(1, cartId))
-                .count(1)
-                .item(Item.builder().id(1).price(100.0).build())
-                .build();
-
         HttpCookie cookie = new HttpCookie("cart_id", cartId.toString());
         MultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
         cookies.add("cart_id", cookie);
-
         when(request.getCookies()).thenReturn(cookies);
 
         when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
-        when(cartItemsRepository.findByCartIdWithItem(cartId)).thenReturn(Flux.just(cartItem));
-        when(orderService.saveOrder(userId, 100.0, List.of(cartItem))).thenReturn(Mono.just(new Order()));
-        when(cartItemsRepository.deleteAllById_CartId(cartId)).thenReturn(Mono.empty());
+
+        when(orderService.saveOrder(eq(userId), eq(100.0), anyList()))
+                .thenReturn(Mono.just(new Order()));
+
+        when(cartItemsRepository.deleteAllByCartId(cartId)).thenReturn(Mono.empty());
+
+        CartItemWithItem projection = mock(CartItemWithItem.class);
+        when(projection.getCartId()).thenReturn(cartId);
+        when(projection.getItemId()).thenReturn(1);
+        when(projection.getCount()).thenReturn(1);
+        when(projection.getItemPrice()).thenReturn(100.0);
+        when(cartItemsRepository.findByCartIdWithItem(cartId)).thenReturn(Flux.just(projection));
 
         cartService.buy(request).block();
 
         verify(cartRepository).findById(cartId);
         verify(cartItemsRepository).findByCartIdWithItem(cartId);
-        verify(orderService).saveOrder(userId, 100.0, List.of(cartItem));
-        verify(cartItemsRepository).deleteAllById_CartId(cartId);
+
+        verify(orderService).saveOrder(eq(userId), eq(100.0), anyList());
+
+        verify(cartItemsRepository).deleteAllByCartId(cartId);
     }
 }

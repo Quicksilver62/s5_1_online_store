@@ -70,9 +70,9 @@ public class ItemServiceTest {
         when(itemRepository.findAllBy(pageable)).thenReturn(Flux.just(item1, item2));
         when(itemRepository.count()).thenReturn(Mono.just(2L));
 
-        when(cartItemsRepository.findById_ItemIdAndId_CartId(cartId, 1))
+        when(cartItemsRepository.findByItemIdAndCartId(cartId, 1))
                 .thenReturn(Mono.just(CartItem.builder().count(1).build()));
-        when(cartItemsRepository.findById_ItemIdAndId_CartId(cartId, 2))
+        when(cartItemsRepository.findByItemIdAndCartId(cartId, 2))
                 .thenReturn(Mono.empty());
 
         ItemDto dto1 = ItemDto.builder().id(1).title("Item 1").price(100.0).count(1).build();
@@ -109,7 +109,7 @@ public class ItemServiceTest {
         when(itemRepository.findAllBy(pageable)).thenReturn(Flux.just(item));
         when(itemRepository.count()).thenReturn(Mono.just(1L));
 
-        when(cartItemsRepository.findById_ItemIdAndId_CartId(cartId, itemId))
+        when(cartItemsRepository.findByItemIdAndCartId(cartId, itemId))
                 .thenReturn(Mono.just(CartItem.builder().count(2).build()));
 
         ItemDto dto = ItemDto.builder().id(itemId).title("Item 1").price(100.0).count(2).build();
@@ -137,7 +137,7 @@ public class ItemServiceTest {
         Item item = Item.builder().id(itemId).title("Item 1").price(100.0).build();
         when(itemRepository.findById(itemId)).thenReturn(Mono.just(item));
 
-        CartItem cartItem = CartItem.builder().id(new CartItemId(itemId, cartId)).count(1).build();
+        CartItem cartItem = CartItem.builder().itemId(itemId).cartId(cartId).count(1).build();
         when(cartService.getCartItem(itemId, cartId)).thenReturn(Mono.just(cartItem));
 
         ItemDto expectedDto = ItemDto.builder().id(itemId).title("Item 1").price(100.0).count(1).build();

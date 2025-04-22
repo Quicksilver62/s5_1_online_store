@@ -51,7 +51,7 @@ public class ItemService {
     private Mono<Slice<ItemDto>> getItemsWithCount(Integer cartId, Pageable pageable) {
         return itemRepository.findAllBy(pageable)
                 .flatMap(item ->
-                        cartItemsRepository.findById_ItemIdAndId_CartId(cartId, item.getId())
+                        cartItemsRepository.findByItemIdAndCartId(cartId, item.getId())
                                 .map(CartItem::getCount)
                                 .defaultIfEmpty(0)
                                 .map(count -> {

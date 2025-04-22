@@ -9,10 +9,7 @@ import ru.yandex.practicum.s5_1_online_store.dto.ItemDto;
 import ru.yandex.practicum.s5_1_online_store.dto.OrderDto;
 import ru.yandex.practicum.s5_1_online_store.helpers.Helper;
 import ru.yandex.practicum.s5_1_online_store.mappers.ItemMapper;
-import ru.yandex.practicum.s5_1_online_store.model.CartItem;
-import ru.yandex.practicum.s5_1_online_store.model.Order;
-import ru.yandex.practicum.s5_1_online_store.model.OrderItem;
-import ru.yandex.practicum.s5_1_online_store.model.OrderItemId;
+import ru.yandex.practicum.s5_1_online_store.model.*;
 import ru.yandex.practicum.s5_1_online_store.repository.OrderItemsRepository;
 import ru.yandex.practicum.s5_1_online_store.repository.OrderRepository;
 
@@ -55,7 +52,8 @@ public class OrderService {
                         orderItemsRepository.saveAll(
                                 cartItems.stream()
                                         .map(ci -> new OrderItem(
-                                                new OrderItemId(ci.getId().getItemId(), savedOrder.getId()),
+                                                ci.getItemId(),
+                                                savedOrder.getId(),
                                                 ci.getCount(),
                                                 ci.getItem()
                                         ))
@@ -68,11 +66,18 @@ public class OrderService {
     private Mono<OrderDto> getOrderDto(Order order) {
         return orderItemsRepository.findByOrderIdWithItem(order.getId())
                 .collectList()
-                .map(orderItems -> {
+                .map(orderItemWithItems -> {
                     OrderDto orderDto = new OrderDto();
                     orderDto.setId(order.getId());
                     orderDto.setTotalSum(order.getTotalSum());
                     Set<ItemDto> itemDtos = new HashSet<>();
+                    var orderItems = orderItemWithItems.stream()
+                            .map(orderItemWithItem -> OrderItem.builder()
+                                    .orderId(orderItemWithItem.getOrderId())
+                                    .itemId(orderItemWithItem.getItemId())
+                                    .count(orderItemWithItem.getCount())
+                                    .build())
+                            .toList();
                     orderItems.forEach(orderItem -> {
                         var itemDto = itemMapper.toDto(orderItem.getItem());
                         itemDtos.add(itemDto);

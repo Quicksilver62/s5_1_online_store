@@ -70,6 +70,8 @@ public class CartItemsRepositoryTest extends AbstractTestContainerTest{
         assertNotNull(items);
         assertEquals(2, items.size());
         assertTrue(items.stream().allMatch(ci -> ci.getCartId().equals(cartId)));
+        assertTrue(items.stream().anyMatch(ci -> ci.getItemTitle().equals(item1.getTitle())));
+        assertTrue(items.stream().anyMatch(ci -> ci.getItemTitle().equals(item2.getTitle())));
     }
 
     @Test

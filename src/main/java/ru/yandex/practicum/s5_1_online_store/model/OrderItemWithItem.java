@@ -1,20 +1,20 @@
 package ru.yandex.practicum.s5_1_online_store.model;
 
-import org.springframework.data.relational.core.mapping.Column;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-public interface OrderItemWithItem {
-    @Column("order_id")
-    Integer getOrderId();
-    @Column("item_id")
-    Integer getItemId();
-    @Column("count")
-    Integer getCount();
-    @Column("title")
-    String getItemTitle();
-    @Column("description")
-    String getItemDescription();
-    @Column("img_path")
-    String getItemImgPath();
-    @Column("price")
-    Double getItemPrice();
+@NoArgsConstructor
+@AllArgsConstructor
+@Getter
+@Setter
+public class OrderItemWithItem {
+    private Integer orderId;
+    private Integer itemId;
+    private Integer count;
+    private String itemTitle;
+    private String itemDescription;
+    private String itemImgPath;
+    private Double itemPrice;
 }

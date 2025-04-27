@@ -10,13 +10,13 @@ public interface OrderItemsRepository extends ReactiveCrudRepository<OrderItem, 
 
     @Query("""
         SELECT
-            order_items.order_id as order_id,
-            order_items.item_id as item_id,
+            order_items.order_id,
+            order_items.item_id,
             order_items.count,
-            items.title,
-            items.description,
-            items.img_path,
-            items.price
+            items.title as item_title,
+            items.description as item_description,
+            items.img_path as item_img_path,
+            items.price as item_price,
         FROM store.order_items
         JOIN store.items ON order_items.item_id = items.id 
         WHERE order_items.order_id = :orderId

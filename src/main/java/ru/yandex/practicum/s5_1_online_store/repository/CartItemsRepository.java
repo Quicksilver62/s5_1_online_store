@@ -15,13 +15,13 @@ public interface CartItemsRepository extends ReactiveCrudRepository<CartItem, In
 
     @Query("""
         SELECT
-            cart_items.cart_id as cart_id,
-            cart_items.item_id as item_id,
+            cart_items.cart_id,
+            cart_items.item_id,
             cart_items.count,
-            items.title,
-            items.description,
-            items.img_path,
-            items.price
+            items.title as item_title,
+            items.description as item_description,
+            items.img_path as item_img_path,
+            items.price as item_price
         FROM store.cart_items
         JOIN store.items ON cart_items.item_id = items.id 
         WHERE cart_items.cart_id = :cartId

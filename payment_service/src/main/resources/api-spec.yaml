@@ -7,6 +7,7 @@ paths:
   /api/amount:
     get:
       summary: Получить баланс на счете
+      operationId: getAmount
       responses:
         '200':
           description: Успешный ответ
@@ -28,6 +29,7 @@ paths:
     post:
       summary: Осуществить платеж
       description: Списание указанной суммы с баланса пользователя
+      operationId: purchase
       requestBody:
         required: true
         content:
@@ -35,13 +37,17 @@ paths:
             schema:
               type: object
               properties:
-                amount:
+                price:
                   type: number
                   format: double
                   description: Сумма платежа
       responses:
         '201':
           description: Платеж успешно осуществлен
+          content:
+            application/json:
+              schema:
+                type: object
         '400':
           description: Неверный запрос
           content:

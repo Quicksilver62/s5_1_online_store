@@ -49,6 +49,7 @@ openApiGenerate {
 }
 
 sourceSets.main.java.srcDir "$projectDir/build/generated/src/main/java"
+sourceSets.main.java.srcDir "$projectDir/build/generated/src/test/java"
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
@@ -61,6 +62,10 @@ dependencies {
     implementation 'org.apache.httpcomponents.client5:httpclient5:5.4.2'
     implementation 'jakarta.validation:jakarta.validation-api:3.1.1'
     implementation 'io.swagger.core.v3:swagger-annotations:2.2.28'
+}
+
+springBoot {
+    mainClass = 'ru.yandex.practicum.payment_service.PaymentServiceApplication'
 }
 
 tasks.named('test') {

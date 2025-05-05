@@ -1,3 +1,0 @@
-logging:
-  level:
-    io.asyncer.r2dbc.mysql: DEBUG

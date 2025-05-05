@@ -45,6 +45,10 @@ paths:
       responses:
         '201':
           description: Платеж успешно осуществлен
+          content:
+            application/json:
+              schema:
+                type: object
         '400':
           description: Неверный запрос
           content:

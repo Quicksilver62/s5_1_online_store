@@ -29,9 +29,9 @@ openApiGenerate {
     inputSpec.set("$projectDir/src/main/resources/api-spec.yaml")
     outputDir.set("$projectDir/build/generated")
     ignoreFileOverride.set(".openapi-generator-java-sources.ignore")
-    modelPackage.set("ru.ya.server.domain")
-    invokerPackage.set("ru.ya.server")
-    apiPackage.set("ru.ya.server.api")
+    modelPackage.set("ru.yandex.practicum.server.domain")
+    invokerPackage.set("ru.yandex.practicum.server")
+    apiPackage.set("ru.yandex.practicum.server.api")
     configOptions.set([
             hideGenerationTimestamp: "true",
             requestMappingMode: "controller",
@@ -58,6 +58,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    implementation 'org.apache.httpcomponents.client5:httpclient5:5.4.2'
+    implementation 'jakarta.validation:jakarta.validation-api:3.1.1'
+    implementation 'io.swagger.core.v3:swagger-annotations:2.2.28'
 }
 
 tasks.named('test') {

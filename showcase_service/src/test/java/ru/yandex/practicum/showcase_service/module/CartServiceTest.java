@@ -9,8 +9,11 @@ import org.springframework.http.HttpCookie;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.client.api.DefaultApi;
+import ru.yandex.practicum.client.domain.ApiPurchasePostRequest;
 import ru.yandex.practicum.showcase_service.model.*;
 import ru.yandex.practicum.showcase_service.repository.CartItemsRepository;
 import ru.yandex.practicum.showcase_service.repository.CartRepository;
@@ -40,6 +43,9 @@ public class CartServiceTest {
 
     @Mock
     private ServerHttpRequest request;
+
+    @Mock
+    private DefaultApi paymentApiClient;
 
     @InjectMocks
     private CartService cartService;
@@ -197,6 +203,9 @@ public class CartServiceTest {
 
         when(cartItemsRepository.deleteAllByCartId(cartId)).thenReturn(Mono.empty());
 
+        when(paymentApiClient.apiPurchasePost(any(ApiPurchasePostRequest.class)))
+                .thenReturn(Mono.empty());
+
         CartItemWithItem projection = mock(CartItemWithItem.class);
         when(projection.getCartId()).thenReturn(cartId);
         when(projection.getItemId()).thenReturn(1);
@@ -212,5 +221,53 @@ public class CartServiceTest {
         verify(orderService).saveOrder(eq(userId), eq(100.0), anyList());
 
         verify(cartItemsRepository).deleteAllByCartId(cartId);
+    }
+
+    @Test
+    void buy_EmptyCart_ThrowsIllegalArgumentException() {
+        Integer cartId = 1;
+        UUID userId = UUID.randomUUID();
+        Cart cart = Cart.builder().id(cartId).userId(userId).build();
+
+        HttpCookie cookie = new HttpCookie("cart_id", cartId.toString());
+        MultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
+        cookies.add("cart_id", cookie);
+        when(request.getCookies()).thenReturn(cookies);
+
+        when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
+        when(cartItemsRepository.findByCartIdWithItem(cartId)).thenReturn(Flux.empty());
+
+        Mono<Void> result = cartService.buy(request);
+
+        assertThrows(IllegalArgumentException.class, result::block);
+    }
+
+    @Test
+    void buy_ShouldFail_WhenPaymentApiReturnsBadRequest() {
+        Integer cartId = 1;
+        UUID userId = UUID.randomUUID();
+        Cart cart = Cart.builder().id(cartId).userId(userId).build();
+
+        HttpCookie cookie = new HttpCookie("cart_id", cartId.toString());
+        MultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
+        cookies.add("cart_id", cookie);
+        when(request.getCookies()).thenReturn(cookies);
+
+        when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
+
+        when(paymentApiClient.apiPurchasePost(any()))
+                .thenReturn(Mono.error(new WebClientResponseException(
+                        500, "Server Error", null, null, null)));
+
+        CartItemWithItem projection = mock(CartItemWithItem.class);
+        when(projection.getCartId()).thenReturn(cartId);
+        when(projection.getItemId()).thenReturn(1);
+        when(projection.getCount()).thenReturn(1);
+        when(projection.getItemPrice()).thenReturn(100.0);
+        when(cartItemsRepository.findByCartIdWithItem(cartId)).thenReturn(Flux.just(projection));
+
+        Mono<Void> result = cartService.buy(request);
+
+        assertThrows(RuntimeException.class, result::block);
     }
 }

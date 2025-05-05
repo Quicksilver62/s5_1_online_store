@@ -1,7 +1,10 @@
+import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
+
 plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.4.4'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id "org.openapi.generator" version "7.12.0"
 }
 
 group = 'ru.yandex.practicum'
@@ -23,11 +26,35 @@ repositories {
 	mavenCentral()
 }
 
+tasks.register('buildClient', GenerateTask) {
+	generatorName.set("java")
+	inputSpec.set("$projectDir/src/main/resources/api-spec.yaml")
+	outputDir.set("$projectDir/build/generated")
+	ignoreFileOverride.set(".openapi-generator-java-sources.ignore")
+	modelPackage.set("ru.yandex.practicum.client.domain")
+	invokerPackage.set("ru.yandex.practicum.client")
+	apiPackage.set("ru.yandex.practicum.client.api")
+	configOptions.set([
+			hideGenerationTimestamp: "true",
+			library                : "webclient",
+			useJakartaEe           : "true",
+			useTags                : "true",
+			openApiNullable        : "false",
+			serializableModel      : "true"
+	])
+}
+
+sourceSets.main.java.srcDir "$projectDir/build/generated/src/main/java"
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
 	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 	implementation 'org.mapstruct:mapstruct:1.6.3'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.apache.httpcomponents.client5:httpclient5:5.4.2'
+	implementation 'jakarta.validation:jakarta.validation-api:3.1.1'
+	implementation 'io.swagger.core.v3:swagger-annotations:2.2.28'
 	annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -36,6 +63,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:postgresql'
 	testImplementation 'org.testcontainers:r2dbc'
+	testImplementation 'com.redis:testcontainers-redis:2.2.2'
 	testImplementation 'org.testcontainers:junit-jupiter'
 	testImplementation 'org.hamcrest:hamcrest:3.0'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -43,4 +71,8 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+tasks.named('compileJava') {
+	dependsOn(tasks.buildClient)
 }

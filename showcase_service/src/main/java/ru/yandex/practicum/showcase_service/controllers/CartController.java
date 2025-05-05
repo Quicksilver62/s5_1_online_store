@@ -6,7 +6,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
-import ru.yandex.practicum.showcase_service.dto.ItemDto;
+import ru.yandex.practicum.showcase_service.facades.CartFacade;
 import ru.yandex.practicum.showcase_service.services.CartService;
 
 import java.util.Collections;
@@ -17,16 +17,15 @@ import java.util.Collections;
 public class CartController {
 
     private final CartService cartService;
+    private final CartFacade cartFacade;
 
     @GetMapping
     public Mono<String> cartPage(Model model, ServerHttpRequest request) {
-        return cartService.getCartItems(request)
-                .collectList()
-                .doOnNext(items -> {
-                    model.addAttribute("items", items);
-                    model.addAttribute("total", items.stream()
-                            .mapToDouble(ItemDto::getPrice)
-                            .sum());
+        return cartFacade.getCartModel(request)
+                .doOnNext(cartModel -> {
+                    model.addAttribute("items", cartModel.items());
+                    model.addAttribute("total", cartModel.total());
+                    model.addAttribute("isAvailable", cartModel.isAvailable());
                 })
                 .thenReturn("cart");
     }
@@ -36,16 +35,12 @@ public class CartController {
                                    @PathVariable("itemId") Integer itemId,
                                    Model model,
                                    ServerHttpRequest request) {
-        return cartService.handleItemAction(action, itemId, request)
-                .then(cartService.getCartItems(request)
-                        .collectList()
-                        .doOnSuccess(items -> {
-                            model.addAttribute("items", items);
-                            model.addAttribute("total", items.stream()
-                                    .mapToDouble(ItemDto::getPrice)
-                                    .sum());
-                        })
-                )
+        return cartFacade.handleItemActionAndGetModel(action, itemId, request)
+                .doOnNext(cartModel -> {
+                    model.addAttribute("items", cartModel.items());
+                    model.addAttribute("total", cartModel.total());
+                    model.addAttribute("isAvailable", cartModel.isAvailable());
+                })
                 .thenReturn("cart");
     }
 
@@ -55,6 +50,7 @@ public class CartController {
                 .then(Mono.fromCallable(() -> {
                     model.addAttribute("items", Collections.EMPTY_LIST);
                     model.addAttribute("total", 0.0);
+                    model.addAttribute("isAvailable", false);
                     return "cart";
                 }));
     }

@@ -1,22 +1,24 @@
 package ru.yandex.practicum.showcase_service.services;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.client.api.DefaultApi;
+import ru.yandex.practicum.client.domain.ApiPurchasePostRequest;
 import ru.yandex.practicum.showcase_service.dto.ItemDto;
 import ru.yandex.practicum.showcase_service.helpers.Helper;
-import ru.yandex.practicum.showcase_service.model.*;
-import ru.yandex.practicum.showcase_service.repository.*;
 import ru.yandex.practicum.showcase_service.model.Cart;
 import ru.yandex.practicum.showcase_service.model.CartItem;
-import ru.yandex.practicum.showcase_service.model.Order;
 import ru.yandex.practicum.showcase_service.repository.CartItemsRepository;
 import ru.yandex.practicum.showcase_service.repository.CartRepository;
 import ru.yandex.practicum.showcase_service.repository.ItemRepository;
 
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -28,6 +30,7 @@ public class CartService {
     private final CartRepository cartRepository;
     private final CartItemsRepository cartItemsRepository;
     private final ItemRepository itemRepository;
+    private final DefaultApi paymentApiClient;
 
     public Mono<Cart> getUserCart(UUID userId) {
         return cartRepository.findByUserId(userId)
@@ -110,26 +113,42 @@ public class CartService {
     public Mono<Void> buy(ServerHttpRequest request) {
         return Helper.getCartIdFromCookie(request)
                 .flatMap(this::getCartById)
-                .flatMap(cart -> createOrderFromCart(cart)
-                        .then(cartItemsRepository.deleteAllByCartId(cart.getId()))
+                .flatMap(cart -> cartItemsRepository.findByCartIdWithItem(cart.getId())
+                        .collectList()
+                        .flatMap(cartItemsWithItems -> {
+                            if (cartItemsWithItems.isEmpty()) {
+                                return Mono.error(new IllegalArgumentException("Cart is empty"));
+                            }
+
+                            List<CartItem> cartItems = cartItemsWithItems.stream()
+                                    .map(cartItemWithItem -> CartItem.builder()
+                                            .cartId(cartItemWithItem.getCartId())
+                                            .itemId(cartItemWithItem.getItemId())
+                                            .count(cartItemWithItem.getCount())
+                                            .build())
+                                    .toList();
+
+                            double totalSum = cartItemsWithItems.stream()
+                                    .mapToDouble(ci -> ci.getItemPrice() * ci.getCount())
+                                    .sum();
+
+                            ApiPurchasePostRequest purchaseRequest = new ApiPurchasePostRequest()
+                                    .amount(totalSum);
+
+                            return paymentApiClient.apiPurchasePost(purchaseRequest)
+                                    .onErrorMap(this::handlePaymentError)
+                                    .then(orderService.saveOrder(cart.getUserId(), totalSum, cartItems))
+                                    .then(cartItemsRepository.deleteAllByCartId(cart.getId()));
+                        })
                 );
     }
 
-    private Mono<Order> createOrderFromCart(Cart cart) {
-        return cartItemsRepository.findByCartIdWithItem(cart.getId())
-                .collectList()
-                .flatMap(cartItemsWithItems -> {
-                    var cartItems = cartItemsWithItems.stream()
-                            .map(cartItemWithItem -> CartItem.builder()
-                                    .cartId(cartItemWithItem.getCartId())
-                                    .itemId(cartItemWithItem.getItemId())
-                                    .count(cartItemWithItem.getCount())
-                                    .build())
-                            .toList();
-                    double totalSum = cartItemsWithItems.stream()
-                            .mapToDouble(ci -> ci.getItemPrice() * ci.getCount())
-                            .sum();
-                    return orderService.saveOrder(cart.getUserId(), totalSum, cartItems);
-                });
+    private Throwable handlePaymentError(Throwable error) {
+        if (error instanceof WebClientResponseException ex) {
+            if (ex.getStatusCode() == HttpStatus.BAD_REQUEST) {
+                return new IllegalArgumentException("Invalid payment request: " + ex.getResponseBodyAsString());
+            }
+        }
+        return new RuntimeException("Payment processing failed", error);
     }
 }

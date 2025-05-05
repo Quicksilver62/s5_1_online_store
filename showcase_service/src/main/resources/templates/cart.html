@@ -52,6 +52,7 @@
         <td style="text-align:right">
             <form action="/cart/items/buy" method="post" th:if="${not items.empty}">
                 <button>Купить</button>
+                <span th:unless="${isAvailable}" class="text-muted">Покупка временно недоступна</span>
             </form>
         </td>
     </tr>

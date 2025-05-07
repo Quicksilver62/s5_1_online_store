@@ -16,6 +16,8 @@ import ru.yandex.practicum.showcase_service.mappers.ItemMapper;
 import ru.yandex.practicum.showcase_service.model.Item;
 import ru.yandex.practicum.showcase_service.repository.ItemRepository;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 public class ItemFacade {
@@ -62,5 +64,14 @@ public class ItemFacade {
                             }))
                 .then()
                 .onErrorResume(Mono::error);
+    }
+
+    public Mono<Void> clearCache() {
+        return Mono.fromRunnable(() -> {
+            Optional.ofNullable(cacheManager.getCache("item"))
+                    .ifPresent(Cache::clear);
+            Optional.ofNullable(cacheManager.getCache("itemsSlice"))
+                    .ifPresent(Cache::clear);
+        });
     }
 }

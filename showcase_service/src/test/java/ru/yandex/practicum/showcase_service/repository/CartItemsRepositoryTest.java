@@ -3,6 +3,7 @@ package ru.yandex.practicum.showcase_service.repository;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import ru.yandex.practicum.showcase_service.AbstractTestContainerTest;
 import ru.yandex.practicum.showcase_service.model.CartItem;
 import ru.yandex.practicum.showcase_service.model.CartItemWithItem;
 import ru.yandex.practicum.showcase_service.model.Item;
@@ -11,7 +12,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class CartItemsRepositoryTest extends AbstractTestContainerTest{
+public class CartItemsRepositoryTest extends AbstractTestContainerTest {
 
     @Autowired
     private CartItemsRepository cartItemsRepository;

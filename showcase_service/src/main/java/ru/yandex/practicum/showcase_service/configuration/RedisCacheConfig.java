@@ -21,20 +21,15 @@ public class RedisCacheConfig {
                                 RedisSerializationContext.SerializationPair.fromSerializer(
                                         new Jackson2JsonRedisSerializer<>(Item.class)
                                 )
-                        )
-        );
-    }
-
-    @Bean
-    public RedisCacheManagerBuilderCustomizer itemSliceCacheCustomizer() {
-        return builder -> builder.withCacheConfiguration(
-                "itemsSlice",
-                RedisCacheConfiguration.defaultCacheConfig()
-                        .serializeValuesWith(
-                                RedisSerializationContext.SerializationPair.fromSerializer(
-                                        new Jackson2JsonRedisSerializer<>(Slice.class)
+                        ))
+                .withCacheConfiguration(
+                        "itemsSlice",
+                        RedisCacheConfiguration.defaultCacheConfig()
+                                .serializeValuesWith(
+                                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                                new Jackson2JsonRedisSerializer<>(Slice.class)
+                                        )
                                 )
-                        )
-        );
+                );
     }
 }

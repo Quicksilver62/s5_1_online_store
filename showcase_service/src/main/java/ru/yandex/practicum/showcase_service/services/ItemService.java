@@ -7,14 +7,15 @@ import org.springframework.data.domain.SliceImpl;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.showcase_service.dto.ItemDto;
+import ru.yandex.practicum.showcase_service.facades.ItemFacade;
 import ru.yandex.practicum.showcase_service.helpers.Helper;
 import ru.yandex.practicum.showcase_service.mappers.ItemMapper;
 import ru.yandex.practicum.showcase_service.model.CartItem;
 import ru.yandex.practicum.showcase_service.model.Item;
 import ru.yandex.practicum.showcase_service.repository.CartItemsRepository;
-import ru.yandex.practicum.showcase_service.repository.ItemRepository;
 
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -23,10 +24,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ItemService {
 
-    private final ItemRepository itemRepository;
     private final CartService cartService;
     private final ItemMapper itemMapper;
     private final CartItemsRepository cartItemsRepository;
+    private final ItemFacade itemFacade;
 
     public Mono<Slice<ItemDto>> getItems(ServerHttpRequest request, ServerHttpResponse response, Pageable pageable) {
         return Helper.getUserIdFromCookie(request)
@@ -49,30 +50,27 @@ public class ItemService {
     }
 
     private Mono<Slice<ItemDto>> getItemsWithCount(Integer cartId, Pageable pageable) {
-        return itemRepository.findAllBy(pageable)
-                .flatMap(item ->
-                        cartItemsRepository.findByItemIdAndCartId(cartId, item.getId())
-                                .map(CartItem::getCount)
-                                .defaultIfEmpty(0)
-                                .map(count -> {
-                                    ItemDto dto = itemMapper.toDto(item);
-                                    dto.setCount(count);
-                                    return dto;
-                                })
-                )
-                .collectList()
-                .zipWith(itemRepository.count())
-                .map(tuple -> new SliceImpl<>(
-                        tuple.getT1(),
-                        pageable,
-                        (pageable.getOffset() + pageable.getPageSize()) < tuple.getT2()
+        return itemFacade.getItemsSlice(pageable)
+                .flatMap(slice -> Flux.fromIterable(slice.getContent())
+                        .flatMap(item ->
+                                cartItemsRepository.findByItemIdAndCartId(cartId, item.getId())
+                                        .map(CartItem::getCount)
+                                        .defaultIfEmpty(0)
+                                        .map(count -> {
+                                            ItemDto dto = itemMapper.toDto(item);
+                                            dto.setCount(count);
+                                            return dto;
+                                        })
+                        )
+                        .collectList()
+                        .map(items -> new SliceImpl<>(items, pageable, slice.hasNext())
                 ));
     }
 
     public Mono<ItemDto> getItem(Integer id, ServerHttpRequest request) {
         return Helper.getCartIdFromCookie(request)
                 .flatMap(cartId -> Mono.zip(
-                        itemRepository.findById(id)
+                        itemFacade.findById(id)
                                 .switchIfEmpty(Mono.error(new NoSuchElementException(id + " not found"))),
                         cartService.getCartItem(id, cartId)
                 ))

@@ -3,11 +3,18 @@ server:
 
 spring:
   application:
-    name: s5_1_online_store
+    name: showcase-service
   datasource:
-    url: r2dbc:postgresql://localhost:5432/blogdb
+    url: r2dbc:postgresql://localhost:5432/store
     username: admin
     password: 12345
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+  cache:
+    redis:
+      time-to-live: PT1M
 
   sql:
     init:

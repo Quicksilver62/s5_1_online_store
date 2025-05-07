@@ -10,15 +10,15 @@ import org.springframework.http.HttpCookie;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.util.LinkedMultiValueMap;
-import reactor.core.publisher.Flux;
+
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.showcase_service.dto.ItemDto;
+import ru.yandex.practicum.showcase_service.facades.ItemFacade;
 import ru.yandex.practicum.showcase_service.mappers.ItemMapper;
 import ru.yandex.practicum.showcase_service.model.Cart;
 import ru.yandex.practicum.showcase_service.model.CartItem;
 import ru.yandex.practicum.showcase_service.model.Item;
 import ru.yandex.practicum.showcase_service.repository.CartItemsRepository;
-import ru.yandex.practicum.showcase_service.repository.ItemRepository;
 import ru.yandex.practicum.showcase_service.services.CartService;
 import ru.yandex.practicum.showcase_service.services.ItemService;
 
@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 public class ItemServiceTest {
 
     @Mock
-    private ItemRepository itemRepository;
+    private ItemFacade itemFacade;
 
     @Mock
     private CartService cartService;
@@ -57,7 +57,6 @@ public class ItemServiceTest {
     void getItems_WithValidCookies_ReturnsSliceOfItems() {
         String userId = UUID.randomUUID().toString();
         Integer cartId = 1;
-        Pageable pageable = PageRequest.of(0, 10);
 
         HttpCookie userIdCookie = new HttpCookie("user_id", userId);
         LinkedMultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
@@ -69,8 +68,10 @@ public class ItemServiceTest {
 
         Item item1 = Item.builder().id(1).title("Item 1").price(100.0).build();
         Item item2 = Item.builder().id(2).title("Item 2").price(200.0).build();
-        when(itemRepository.findAllBy(pageable)).thenReturn(Flux.just(item1, item2));
-        when(itemRepository.count()).thenReturn(Mono.just(2L));
+        List<Item> items = List.of(item1, item2);
+        PageRequest pageable = PageRequest.of(0, 2);
+        Slice<Item> slice = new SliceImpl<>(items, pageable, true);
+        when(itemFacade.getItemsSlice(pageable)).thenReturn(Mono.just(slice));
 
         when(cartItemsRepository.findByItemIdAndCartId(cartId, 1))
                 .thenReturn(Mono.just(CartItem.builder().count(1).build()));
@@ -98,7 +99,6 @@ public class ItemServiceTest {
         Integer cartId = 1;
         Integer itemId = 1;
         String action = "plus";
-        Pageable pageable = PageRequest.of(0, 10);
 
         HttpCookie cartCookie = new HttpCookie("cart_id", cartId.toString());
         LinkedMultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
@@ -108,8 +108,10 @@ public class ItemServiceTest {
         when(cartService.handleItemAction(action, itemId, request)).thenReturn(Mono.empty());
 
         Item item = Item.builder().id(itemId).title("Item 1").price(100.0).build();
-        when(itemRepository.findAllBy(pageable)).thenReturn(Flux.just(item));
-        when(itemRepository.count()).thenReturn(Mono.just(1L));
+        List<Item> items = List.of(item);
+        PageRequest pageable = PageRequest.of(0, 1);
+        Slice<Item> slice = new SliceImpl<>(items, pageable, true);
+        when(itemFacade.getItemsSlice(pageable)).thenReturn(Mono.just(slice));
 
         when(cartItemsRepository.findByItemIdAndCartId(cartId, itemId))
                 .thenReturn(Mono.just(CartItem.builder().count(2).build()));
@@ -137,7 +139,7 @@ public class ItemServiceTest {
         when(request.getCookies()).thenReturn(cookies);
 
         Item item = Item.builder().id(itemId).title("Item 1").price(100.0).build();
-        when(itemRepository.findById(itemId)).thenReturn(Mono.just(item));
+        when(itemFacade.findById(itemId)).thenReturn(Mono.just(item));
 
         CartItem cartItem = CartItem.builder().itemId(itemId).cartId(cartId).count(1).build();
         when(cartService.getCartItem(itemId, cartId)).thenReturn(Mono.just(cartItem));

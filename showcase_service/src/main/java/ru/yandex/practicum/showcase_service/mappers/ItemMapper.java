@@ -9,4 +9,5 @@ import ru.yandex.practicum.showcase_service.model.Item;
 public interface ItemMapper {
 
     ItemDto toDto(Item item);
+    Item fromDto(ItemDto itemDto);
 }

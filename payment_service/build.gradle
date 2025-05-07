@@ -35,7 +35,7 @@ openApiGenerate {
     configOptions.set([
             hideGenerationTimestamp: "true",
             requestMappingMode: "controller",
-            interfaceOnly: "false",
+            interfaceOnly: "true",
             library: "spring-boot",
             reactive: "true",
             useSpringBoot3: "true",
@@ -49,19 +49,18 @@ openApiGenerate {
 }
 
 sourceSets.main.java.srcDir "$projectDir/build/generated/src/main/java"
-sourceSets.main.java.srcDir "$projectDir/build/generated/src/test/java"
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     compileOnly 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
     annotationProcessor 'org.projectlombok:lombok'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'io.projectreactor:reactor-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     implementation 'org.apache.httpcomponents.client5:httpclient5:5.4.2'
     implementation 'jakarta.validation:jakarta.validation-api:3.1.1'
     implementation 'io.swagger.core.v3:swagger-annotations:2.2.28'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 springBoot {

@@ -2,7 +2,6 @@ package ru.yandex.practicum.showcase_service.services;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -20,7 +19,6 @@ import ru.yandex.practicum.showcase_service.repository.ItemRepository;
 
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -32,60 +30,24 @@ public class CartService {
     private final ItemRepository itemRepository;
     private final DefaultApi paymentApiClient;
 
-    public Mono<Cart> getUserCart(UUID userId) {
-        return cartRepository.findByUserId(userId)
-                .switchIfEmpty(Mono.defer(() -> {
-                    Cart newCart = Cart.builder()
-                            .userId(userId)
-                            .build();
-                    return cartRepository.save(newCart);
-                }));
-    }
-
-    public Mono<Cart> getCartById(Integer id) {
-        return cartRepository.findById(id);
+    public Mono<Cart> getUserCart() {
+        return Helper.getCurrentUserId()
+                .flatMap(userId -> cartRepository.findByUserId(userId)
+                        .switchIfEmpty(Mono.defer(() -> {
+                            Cart newCart = Cart.builder()
+                                    .userId(userId)
+                                    .build();
+                            return cartRepository.save(newCart);
+                        })));
     }
 
     public Mono<CartItem> getCartItem(Integer itemId, Integer cartId) {
         return cartItemsRepository.findByItemIdAndCartId(itemId, cartId);
     }
 
-    public Mono<Void> addNewItemToCart(String action, Integer itemId, Integer cartId) {
-        if (!"plus".equalsIgnoreCase(action)) {
-            return Mono.empty();
-        }
-        return itemRepository.findById(itemId)
-                .switchIfEmpty(Mono.error(new NoSuchElementException("Item not found")))
-                .flatMap(item -> {
-                    CartItem newCartItem = CartItem.builder()
-                            .cartId(cartId)
-                            .itemId(itemId)
-                            .count(1)
-                            .build();
-                    return cartItemsRepository.save(newCartItem).then();
-                });
-    }
-
-    public Mono<Void> addItemToCart(CartItem cartItem) {
-        cartItem.setCount(cartItem.getCount() + 1);
-        return cartItemsRepository.save(cartItem).then();
-    }
-
-    public Mono<Void> removeItemFromCart(CartItem cartItem) {
-        if (cartItem.getCount() <= 1) {
-            return cartItemsRepository.delete(cartItem);
-        }
-        cartItem.setCount(cartItem.getCount() - 1);
-        return cartItemsRepository.save(cartItem).then();
-    }
-
-    public Mono<Void> removeAllFromCart(CartItem cartItem) {
-        return cartItemsRepository.delete(cartItem);
-    }
-
-    public Flux<ItemDto> getCartItems(ServerHttpRequest request) {
-        return Helper.getCartIdFromCookie(request)
-                .flatMapMany(cartItemsRepository::findByCartIdWithItem)
+    public Flux<ItemDto> getCartItems() {
+        return getUserCart()
+                .flatMapMany(cart -> cartItemsRepository.findByCartIdWithItem(cart.getId()))
                 .map(cartItemWithItem -> ItemDto.builder()
                         .id(cartItemWithItem.getItemId())
                         .title(cartItemWithItem.getItemTitle())
@@ -96,23 +58,22 @@ public class CartService {
                         .build());
     }
 
-    public Mono<Void> handleItemAction(String action, Integer itemId, ServerHttpRequest request) {
-        return Helper.getCartIdFromCookie(request)
-                .flatMap(cartId -> cartItemsRepository.findByItemIdAndCartId(itemId, cartId)
+    public Mono<Void> handleItemAction(String action, Integer itemId) {
+        return getUserCart()
+                .flatMap(cart -> cartItemsRepository.findByItemIdAndCartId(itemId, cart.getId())
                         .flatMap(cartItem -> switch (action.toLowerCase()) {
                             case "plus" -> addItemToCart(cartItem);
                             case "minus" -> removeItemFromCart(cartItem);
                             case "delete" -> removeAllFromCart(cartItem);
                             default -> Mono.error(new IllegalArgumentException("Unknown action: " + action));
                         })
-                        .switchIfEmpty(addNewItemToCart(action, itemId, cartId))
+                        .switchIfEmpty(addNewItemToCart(action, itemId, cart.getId()))
                 );
     }
 
     @Transactional
-    public Mono<Void> buy(ServerHttpRequest request) {
-        return Helper.getCartIdFromCookie(request)
-                .flatMap(this::getCartById)
+    public Mono<Void> buy() {
+        return getUserCart()
                 .flatMap(cart -> cartItemsRepository.findByCartIdWithItem(cart.getId())
                         .collectList()
                         .flatMap(cartItemsWithItems -> {
@@ -141,6 +102,39 @@ public class CartService {
                                     .then(cartItemsRepository.deleteAllByCartId(cart.getId()));
                         })
                 );
+    }
+
+    private Mono<Void> addNewItemToCart(String action, Integer itemId, Integer cartId) {
+        if (!"plus".equalsIgnoreCase(action)) {
+            return Mono.empty();
+        }
+        return itemRepository.findById(itemId)
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Item not found")))
+                .flatMap(item -> {
+                    CartItem newCartItem = CartItem.builder()
+                            .cartId(cartId)
+                            .itemId(itemId)
+                            .count(1)
+                            .build();
+                    return cartItemsRepository.save(newCartItem).then();
+                });
+    }
+
+    private Mono<Void> addItemToCart(CartItem cartItem) {
+        cartItem.setCount(cartItem.getCount() + 1);
+        return cartItemsRepository.save(cartItem).then();
+    }
+
+    private Mono<Void> removeItemFromCart(CartItem cartItem) {
+        if (cartItem.getCount() <= 1) {
+            return cartItemsRepository.delete(cartItem);
+        }
+        cartItem.setCount(cartItem.getCount() - 1);
+        return cartItemsRepository.save(cartItem).then();
+    }
+
+    private Mono<Void> removeAllFromCart(CartItem cartItem) {
+        return cartItemsRepository.delete(cartItem);
     }
 
     private Throwable handlePaymentError(Throwable error) {

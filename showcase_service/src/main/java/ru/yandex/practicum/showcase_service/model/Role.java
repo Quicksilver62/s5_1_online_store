@@ -5,18 +5,13 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-import java.util.UUID;
-
 @Getter
-@Table("store.users")
-public class User {
+@Table("store.roles")
+public class Role {
 
     @Id
-    private UUID id;
+    private Integer id;
 
-    @Column("username")
-    private String username;
-
-    @Column("password")
-    private String password;
+    @Column("role_name")
+    private String roleName;
 }

@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -17,6 +18,7 @@ public class UploadController {
 
     private final ItemFacade itemFacade;
 
+    @Secured("ROLE_ADMIN")
     @PostMapping(consumes = MediaType.APPLICATION_NDJSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<Void> upload(@Valid @RequestBody Flux<ItemDto> itemDtoFlux) {

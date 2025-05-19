@@ -4,21 +4,19 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
-import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.showcase_service.dto.ItemDto;
 import ru.yandex.practicum.showcase_service.facades.ItemFacade;
-import ru.yandex.practicum.showcase_service.helpers.Helper;
 import ru.yandex.practicum.showcase_service.mappers.ItemMapper;
 import ru.yandex.practicum.showcase_service.model.CartItem;
 import ru.yandex.practicum.showcase_service.model.Item;
 import ru.yandex.practicum.showcase_service.repository.CartItemsRepository;
 
 import java.util.NoSuchElementException;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -29,24 +27,51 @@ public class ItemService {
     private final CartItemsRepository cartItemsRepository;
     private final ItemFacade itemFacade;
 
-    public Mono<Slice<ItemDto>> getItems(ServerHttpRequest request, ServerHttpResponse response, Pageable pageable) {
-        return Helper.getUserIdFromCookie(request)
-                .flatMap(userId -> {
-                    UUID uuid = UUID.fromString(userId);
-                    return cartService.getUserCart(uuid);
+    public Mono<Slice<ItemDto>> getItems(Pageable pageable) {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .flatMap(auth -> {
+                    try {
+                        return cartService.getUserCart()
+                                .flatMap(cart -> getItemsWithCount(cart.getId(), pageable))
+                                .onErrorResume(e -> getItemsWithoutCount(pageable));
+                    } catch (IllegalArgumentException e) {
+                        return getItemsWithoutCount(pageable);
+                    }
                 })
-                .flatMap(cart -> Helper.setCartIdCookie(response, cart.getId())
-                        .thenReturn(cart))
-                .flatMap(cart -> getItemsWithCount(cart.getId(), pageable));
+                .switchIfEmpty(getItemsWithoutCount(pageable));
     }
 
-    public Mono<Slice<ItemDto>> handleItemAction(String action, Integer itemId, ServerHttpRequest request,
-                                           Pageable pageable) {
-        return Helper.getCartIdFromCookie(request)
-                .flatMap(cartId ->
-                        cartService.handleItemAction(action, itemId, request)
-                                .then(getItemsWithCount(cartId, pageable))
-                );
+    public Mono<Slice<ItemDto>> handleItemAction(String action, Integer itemId, Pageable pageable) {
+        return cartService.handleItemAction(action, itemId)
+                .then(cartService.getUserCart()
+                        .flatMap(cart -> getItemsWithCount(cart.getId(), pageable)));
+    }
+
+    public Mono<ItemDto> getItem(Integer id) {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .flatMap(auth -> {
+                    try {
+                        return cartService.getUserCart()
+                                .flatMap(cart -> Mono.zip(
+                                        itemFacade.findById(id)
+                                                .switchIfEmpty(Mono.error(
+                                                        new NoSuchElementException(id + " not found"))),
+                                        cartService.getCartItem(id, cart.getId())
+                                ))
+                                .map(tuple -> {
+                                    Item item = tuple.getT1();
+                                    CartItem cartItem = tuple.getT2();
+                                    ItemDto dto = itemMapper.toDto(item);
+                                    dto.setCount(cartItem.getCount());
+                                    return dto;
+                                });
+                    } catch (IllegalArgumentException e) {
+                        return getItemDto(id);
+                    }
+                })
+                .switchIfEmpty(getItemDto(id));
     }
 
     private Mono<Slice<ItemDto>> getItemsWithCount(Integer cartId, Pageable pageable) {
@@ -64,21 +89,28 @@ public class ItemService {
                         )
                         .collectList()
                         .map(items -> new SliceImpl<>(items, pageable, slice.hasNext())
-                ));
+                        ));
     }
 
-    public Mono<ItemDto> getItem(Integer id, ServerHttpRequest request) {
-        return Helper.getCartIdFromCookie(request)
-                .flatMap(cartId -> Mono.zip(
-                        itemFacade.findById(id)
-                                .switchIfEmpty(Mono.error(new NoSuchElementException(id + " not found"))),
-                        cartService.getCartItem(id, cartId)
-                ))
-                .map(tuple -> {
-                    Item item = tuple.getT1();
-                    CartItem cartItem = tuple.getT2();
+    private Mono<Slice<ItemDto>> getItemsWithoutCount(Pageable pageable) {
+        return itemFacade.getItemsSlice(pageable)
+                .flatMap(slice -> Flux.fromIterable(slice.getContent())
+                        .map(item -> {
+                            ItemDto dto = itemMapper.toDto(item);
+                            dto.setCount(0);
+                            return dto;
+                        })
+                        .collectList()
+                        .map(items -> new SliceImpl<>(items, pageable, slice.hasNext())
+                        ));
+    }
+
+    private Mono<ItemDto> getItemDto(Integer id) {
+        return itemFacade.findById(id)
+                .switchIfEmpty(Mono.error(new NoSuchElementException(id + " not found")))
+                .map(item -> {
                     ItemDto dto = itemMapper.toDto(item);
-                    dto.setCount(cartItem.getCount());
+                    dto.setCount(0);
                     return dto;
                 });
     }

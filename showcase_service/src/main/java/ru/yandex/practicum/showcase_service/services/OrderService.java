@@ -1,7 +1,6 @@
 package ru.yandex.practicum.showcase_service.services;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -9,7 +8,6 @@ import ru.yandex.practicum.showcase_service.dto.ItemDto;
 import ru.yandex.practicum.showcase_service.dto.OrderDto;
 import ru.yandex.practicum.showcase_service.helpers.Helper;
 import ru.yandex.practicum.showcase_service.mappers.ItemMapper;
-import ru.yandex.practicum.showcase_service.model.*;
 import ru.yandex.practicum.showcase_service.model.CartItem;
 import ru.yandex.practicum.showcase_service.model.Order;
 import ru.yandex.practicum.showcase_service.model.OrderItem;
@@ -27,21 +25,15 @@ public class OrderService {
     private final OrderItemsRepository orderItemsRepository;
     private final ItemMapper itemMapper;
 
-    public Flux<OrderDto> getOrders(ServerHttpRequest request) {
-        return Helper.getUserIdFromCookie(request)
-                .flatMapMany(userId -> {
-                    UUID uuid = UUID.fromString(userId);
-                    return orderRepository.findAllByUserId(uuid)
-                            .flatMap(this::getOrderDto);
-                });
+    public Flux<OrderDto> getOrders() {
+        return Helper.getCurrentUserId()
+                .flatMapMany(orderRepository::findAllByUserId)
+                .flatMap(this::getOrderDto);
     }
 
-    public Mono<OrderDto> getOrder(Integer orderId, ServerHttpRequest request) {
-        return Helper.getUserIdFromCookie(request)
-                .flatMap(userId -> {
-                    UUID uuid = UUID.fromString(userId);
-                    return orderRepository.findByIdAndUserId(orderId, uuid);
-                })
+    public Mono<OrderDto> getOrder(Integer orderId) {
+        return Helper.getCurrentUserId()
+                .flatMap(userId -> orderRepository.findByIdAndUserId(orderId, userId))
                 .flatMap(this::getOrderDto);
     }
 

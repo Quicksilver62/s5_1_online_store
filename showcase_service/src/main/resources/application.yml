@@ -20,6 +20,25 @@ spring:
     init:
       mode: always
 
+  security:
+    oauth2:
+      client:
+        provider:
+          keycloak:
+            authorization-uri: http://localhost:8082/realms/online-store/protocol/openid-connect/auth
+            token-uri: http://localhost:8082/realms/online-store/protocol/openid-connect/token
+            user-info-uri: http://localhost:8082/realms/online-store/protocol/openid-connect/userinfo
+            user-name-attribute: sub
+            jwk-set-uri: http://localhost:8082/realms/online-store/protocol/openid-connect/certs
+        registration:
+          keycloak:
+            authorizationGrantType: authorization_code
+            provider: keycloak
+            client-id: showcase-service
+            client-secret: qFFgInZdbbI5RPkfhxCiXwz1NBZMAnzX
+            redirect-uri: '{baseUrl}/{action}/oauth2/code/{registrationId}'
+            scope: openid, profile, email
+
 payment:
   service:
     url: http://127.0.0.1:8081

@@ -8,15 +8,15 @@ import org.springframework.data.relational.core.mapping.Table;
 import java.util.UUID;
 
 @Getter
-@Table("store.users")
-public class User {
+@Table("store.user_roles")
+public class UserRole {
 
     @Id
-    private UUID id;
+    private Integer id;
 
-    @Column("username")
-    private String username;
+    @Column("user_id")
+    private UUID userId;
 
-    @Column("password")
-    private String password;
+    @Column("role_id")
+    private Integer roleId;
 }

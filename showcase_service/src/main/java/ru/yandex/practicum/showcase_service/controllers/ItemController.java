@@ -1,7 +1,7 @@
 package ru.yandex.practicum.showcase_service.controllers;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -18,20 +18,20 @@ public class ItemController {
     private final CartService cartService;
 
     @GetMapping("/{id}")
-    public Mono<String> itemPage(@PathVariable("id") Integer id, Model model, ServerHttpRequest request) {
-        return itemService.getItem(id, request)
+    public Mono<String> itemPage(@PathVariable("id") Integer id, Model model) {
+        return itemService.getItem(id)
                 .doOnNext(item -> model.addAttribute("item", item))
                 .map(item -> "item")
                 .defaultIfEmpty("not-found");
     }
 
     @PostMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public Mono<String> handleItemAction(@RequestParam String action,
                                          @PathVariable("id") Integer id,
-                                         Model model,
-                                         ServerHttpRequest request) {
-        return cartService.handleItemAction(action, id, request)
-                .then(itemService.getItem(id, request))
+                                         Model model) {
+        return cartService.handleItemAction(action, id)
+                .then(itemService.getItem(id))
                 .doOnNext(item -> model.addAttribute("item", item))
                 .map(item -> "item")
                 .defaultIfEmpty("not-found");

@@ -1,7 +1,6 @@
 package ru.yandex.practicum.showcase_service.facades;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.showcase_service.dto.ItemDto;
@@ -16,8 +15,8 @@ public class CartFacade {
     private final CartService cartService;
     private final PaymentService paymentService;
 
-    public Mono<CartModel> getCartModel(ServerHttpRequest request) {
-        return cartService.getCartItems(request)
+    public Mono<CartModel> getCartModel() {
+        return cartService.getCartItems()
                 .collectList()
                 .flatMap(items -> {
                     double total = items.stream()
@@ -28,10 +27,8 @@ public class CartFacade {
                 });
     }
 
-    public Mono<CartModel> handleItemActionAndGetModel(String action,
-                                                       Integer itemId,
-                                                       ServerHttpRequest request) {
-        return cartService.handleItemAction(action, itemId, request)
-                .then(getCartModel(request));
+    public Mono<CartModel> handleItemActionAndGetModel(String action, Integer itemId) {
+        return cartService.handleItemAction(action, itemId)
+                .then(getCartModel());
     }
 }

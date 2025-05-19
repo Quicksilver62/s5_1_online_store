@@ -5,31 +5,26 @@ import org.springframework.http.HttpCookie;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.showcase_service.model.Cart;
+
+import java.security.Principal;
+import java.util.UUID;
 
 @UtilityClass
 public class Helper {
 
-    private final String USER_ID = "user_id";
     private final String CART_ID = "cart_id";
-
-    public Mono<String> getUserIdFromCookie(ServerHttpRequest request) {
-        return getCookieValue(request, USER_ID);
-    }
 
     public Mono<Integer> getCartIdFromCookie(ServerHttpRequest request) {
         return getCookieValue(request, CART_ID)
                 .map(Integer::parseInt);
-    }
-
-    public Mono<Void> setCartIdCookie(ServerHttpResponse response, Integer cartId) {
-        return Mono.fromRunnable(() -> {
-            ResponseCookie cookie = ResponseCookie.from(CART_ID, cartId.toString())
-                    .path("/")
-                    .httpOnly(true)
-                    .build();
-            response.addCookie(cookie);
-        });
     }
 
     private Mono<String> getCookieValue(ServerHttpRequest request, String name) {
@@ -39,4 +34,18 @@ public class Helper {
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Cookie '" + name + "' not found")));
     }
 
+    public Mono<UUID> getCurrentUserId() {
+        return ReactiveSecurityContextHolder.getContext()
+                .switchIfEmpty(Mono.error(new IllegalStateException("Security context not available")))
+                .map(SecurityContext::getAuthentication)
+                .filter(Authentication::isAuthenticated)
+                .switchIfEmpty(Mono.error(new IllegalStateException("User not authenticated")))
+                .handle((auth, sink) -> {
+                    try {
+                        sink.next(UUID.fromString(auth.getName()));
+                    } catch (IllegalArgumentException e) {
+                        sink.error(new IllegalStateException("Invalid user ID format", e));
+                    }
+                });
+    }
 }

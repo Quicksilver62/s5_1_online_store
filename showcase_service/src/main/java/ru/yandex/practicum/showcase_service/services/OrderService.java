@@ -34,6 +34,7 @@ public class OrderService {
     public Mono<OrderDto> getOrder(Integer orderId) {
         return Helper.getCurrentUserId()
                 .flatMap(userId -> orderRepository.findByIdAndUserId(orderId, userId))
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Order not found")))
                 .flatMap(this::getOrderDto);
     }
 

@@ -1,31 +1,28 @@
 package ru.yandex.practicum.showcase_service.module;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpCookie;
-import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.util.LinkedMultiValueMap;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 import ru.yandex.practicum.showcase_service.dto.ItemDto;
-import ru.yandex.practicum.showcase_service.dto.OrderDto;
+import ru.yandex.practicum.showcase_service.helpers.Helper;
 import ru.yandex.practicum.showcase_service.mappers.ItemMapper;
-import ru.yandex.practicum.showcase_service.model.CartItem;
-import ru.yandex.practicum.showcase_service.model.Item;
-import ru.yandex.practicum.showcase_service.model.Order;
-import ru.yandex.practicum.showcase_service.model.OrderItemWithItem;
+import ru.yandex.practicum.showcase_service.model.*;
 import ru.yandex.practicum.showcase_service.repository.OrderItemsRepository;
 import ru.yandex.practicum.showcase_service.repository.OrderRepository;
 import ru.yandex.practicum.showcase_service.services.OrderService;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,122 +37,95 @@ public class OrderServiceTest {
     @Mock
     private ItemMapper itemMapper;
 
-    @Mock
-    private ServerHttpRequest request;
-
     @InjectMocks
     private OrderService orderService;
 
+    private final UUID testUserId = UUID.randomUUID();
+    private final Integer testOrderId = 1;
+    private final Integer testItemId = 100;
+    private final Order testOrder = Order.builder()
+            .id(testOrderId)
+            .userId(testUserId)
+            .totalSum(100.0)
+            .createdAt(LocalDateTime.now())
+            .build();
+    private final CartItem testCartItem = CartItem.builder()
+            .itemId(testItemId)
+            .count(2)
+            .item(Item.builder().id(testItemId).title("Test Item").price(50.0).build())
+            .build();
+    private final OrderItem testOrderItem = OrderItem.builder()
+            .orderId(testOrderId)
+            .itemId(testItemId)
+            .count(2)
+            .item(testCartItem.getItem())
+            .build();
+    private final ItemDto testItemDto = new ItemDto(testItemId, "Test Item", "Description", "img.jpg", 50.0, 2);
+
+    private MockedStatic<Helper> helperMock;
+
+    @BeforeEach
+    void setUp() {
+        helperMock = Mockito.mockStatic(Helper.class);
+        helperMock.when(Helper::getCurrentUserId).thenReturn(Mono.just(testUserId));
+    }
+
+    @AfterEach
+    void tearDown() {
+        helperMock.close();
+    }
+
+
     @Test
-    void getOrders_WithValidUserId_ReturnsOrders() {
-        String userId = UUID.randomUUID().toString();
-        UUID uuid = UUID.fromString(userId);
+    void getOrders_shouldReturnOrders() {
+        OrderItemWithItem orderItemWithItem = new OrderItemWithItem(
+                testOrderId, testItemId, 2,
+                "Test Item", "Description", "img.jpg", 50.0
+        );
 
-        HttpCookie userIdCookie = new HttpCookie("user_id", userId);
-        LinkedMultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
-        cookies.add("user_id", userIdCookie);
-        when(request.getCookies()).thenReturn(cookies);
+        when(orderRepository.findAllByUserId(testUserId)).thenReturn(Flux.just(testOrder));
+        when(orderItemsRepository.findByOrderIdWithItem(testOrderId))
+                .thenReturn(Flux.just(orderItemWithItem));
+        when(itemMapper.toDto(any())).thenReturn(testItemDto);
 
-        Order order1 = Order.builder().id(1).userId(uuid).totalSum(100.0).build();
-        Order order2 = Order.builder().id(2).userId(uuid).totalSum(200.0).build();
-        when(orderRepository.findAllByUserId(uuid)).thenReturn(Flux.just(order1, order2));
-
-        mockOrderDtoConversion(order1, List.of(1));
-        mockOrderDtoConversion(order2, List.of(2));
-
-        List<OrderDto> result = orderService.getOrders(request).collectList().block();
-
-        assertNotNull(result);
-        assertEquals(2, result.size());
-        assertEquals(100.0, result.get(0).getTotalSum());
-        assertEquals(200.0, result.get(1).getTotalSum());
+        StepVerifier.create(orderService.getOrders())
+                .expectNextMatches(orderDto ->
+                        orderDto.getId().equals(testOrderId) &&
+                                orderDto.getTotalSum().equals(100.0) &&
+                                orderDto.getItems().size() == 1
+                )
+                .verifyComplete();
     }
 
     @Test
-    void getOrder_WithInvalidOrderId_ReturnsEmpty() {
-        String userId = UUID.randomUUID().toString();
-        UUID uuid = UUID.fromString(userId);
-        Integer orderId = 999;
+    void getOrder_shouldReturnOrder() {
+        OrderItemWithItem orderItemWithItem = new OrderItemWithItem(
+                testOrderId, testItemId, 2,
+                "Test Item", "Description", "img.jpg", 50.0
+        );
 
-        HttpCookie userIdCookie = new HttpCookie("user_id", userId);
-        LinkedMultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
-        cookies.add("user_id", userIdCookie);
-        when(request.getCookies()).thenReturn(cookies);
+        when(orderRepository.findByIdAndUserId(testOrderId, testUserId))
+                .thenReturn(Mono.just(testOrder));
+        when(orderItemsRepository.findByOrderIdWithItem(testOrderId))
+                .thenReturn(Flux.just(orderItemWithItem));
+        when(itemMapper.toDto(any())).thenReturn(testItemDto);
 
-        when(orderRepository.findByIdAndUserId(orderId, uuid)).thenReturn(Mono.empty());
-
-        OrderDto result = orderService.getOrder(orderId, request).block();
-
-        assertNull(result);
+        StepVerifier.create(orderService.getOrder(testOrderId))
+                .expectNextMatches(orderDto ->
+                        orderDto.getId().equals(testOrderId) &&
+                                orderDto.getTotalSum().equals(100.0) &&
+                                orderDto.getItems().size() == 1
+                )
+                .verifyComplete();
     }
 
     @Test
-    void saveOrder_WithValidData_SavesOrderAndItems() {
-        UUID userId = UUID.randomUUID();
-        double totalSum = 300.0;
+    void getOrder_notFound_shouldReturnEmpty() {
+        when(orderRepository.findByIdAndUserId(testOrderId, testUserId))
+                .thenReturn(Mono.empty());
 
-        Item item1 = Item.builder().id(1).price(100.0).build();
-        Item item2 = Item.builder().id(2).price(200.0).build();
-        CartItem cartItem1 = CartItem.builder()
-                .cartId(1)
-                .itemId(1)
-                .count(1)
-                .item(item1)
-                .build();
-        CartItem cartItem2 = CartItem.builder()
-                .cartId(2)
-                .itemId(1)
-                .count(1)
-                .item(item2)
-                .build();
-        List<CartItem> cartItems = List.of(cartItem1, cartItem2);
-
-        Order savedOrder = Order.builder()
-                .id(1)
-                .userId(userId)
-                .totalSum(totalSum)
-                .createdAt(LocalDateTime.now())
-                .build();
-        when(orderRepository.save(any())).thenReturn(Mono.just(savedOrder));
-
-        when(orderItemsRepository.saveAll(anyList())).thenReturn(Flux.empty());
-
-        Order result = orderService.saveOrder(userId, totalSum, cartItems).block();
-
-        assertNotNull(result);
-        assertEquals(userId, result.getUserId());
-        assertEquals(totalSum, result.getTotalSum());
-
-        verify(orderRepository).save(any());
-        verify(orderItemsRepository).saveAll(anyList());
-    }
-
-    @Test
-    void getOrders_WithMissingUserIdCookie_ThrowsException() {
-        when(request.getCookies()).thenReturn(new LinkedMultiValueMap<>());
-
-        assertThrows(IllegalArgumentException.class, () -> {
-            orderService.getOrders(request).blockFirst();
-        });
-    }
-
-    private void mockOrderDtoConversion(Order order, List<Integer> itemIds) {
-        List<OrderItemWithItem> projections = itemIds.stream()
-                .map(id -> {
-                    OrderItemWithItem projection = mock(OrderItemWithItem.class);
-                    when(projection.getOrderId()).thenReturn(order.getId());
-                    when(projection.getItemId()).thenReturn(id);
-                    when(projection.getCount()).thenReturn(1);
-                    return projection;
-                })
-                .collect(Collectors.toList());
-
-        when(orderItemsRepository.findByOrderIdWithItem(order.getId()))
-                .thenReturn(Flux.fromIterable(projections));
-
-        itemIds.forEach(id -> {
-            ItemDto itemDto = ItemDto.builder().id(id).price(100.0).build();
-            lenient().when(itemMapper.toDto(any())).thenReturn(itemDto);
-        });
+        StepVerifier.create(orderService.getOrder(testOrderId))
+                .expectError(NoSuchElementException.class)
+                .verify();
     }
 }

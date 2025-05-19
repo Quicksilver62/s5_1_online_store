@@ -1,19 +1,21 @@
 package ru.yandex.practicum.showcase_service.module;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpCookie;
-import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 import ru.yandex.practicum.client.api.DefaultApi;
-import ru.yandex.practicum.client.domain.ApiPurchasePostRequest;
 import ru.yandex.practicum.showcase_service.model.*;
 import ru.yandex.practicum.showcase_service.repository.CartItemsRepository;
 import ru.yandex.practicum.showcase_service.repository.CartRepository;
@@ -23,7 +25,6 @@ import ru.yandex.practicum.showcase_service.services.OrderService;
 
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,232 +43,147 @@ public class CartServiceTest {
     private ItemRepository itemRepository;
 
     @Mock
-    private ServerHttpRequest request;
-
-    @Mock
     private DefaultApi paymentApiClient;
 
     @InjectMocks
     private CartService cartService;
 
-    @Test
-    void getUserCart_NewCart_CreatesAndReturnsNewCart() {
-        UUID userId = UUID.randomUUID();
-        Cart newCart = Cart.builder().id(1).userId(userId).build();
+    private final UUID testUserId = UUID.randomUUID();
+    private final Integer testCartId = 1;
+    private final Integer testItemId = 100;
+    private final Cart testCart = Cart.builder().id(testCartId).userId(testUserId).build();
+    private final CartItem testCartItem = CartItem.builder().cartId(testCartId).itemId(testItemId).count(2).build();
+    private final Item testItem = Item.builder().id(testItemId).title("Test Item").price(10.0).build();
 
-        when(cartRepository.findByUserId(userId)).thenReturn(Mono.empty());
-        when(cartRepository.save(any())).thenReturn(Mono.just(newCart));
+    private SecurityContext securityContext;
+    private MockedStatic<ReactiveSecurityContextHolder> reactiveContextMock;
 
-        Cart result = cartService.getUserCart(userId).block();
-        assertNotNull(result);
-        assertEquals(newCart, result);
+    @BeforeEach
+    void setUp() {
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getName()).thenReturn(testUserId.toString());
+        when(authentication.isAuthenticated()).thenReturn(true);
 
-        verify(cartRepository).findByUserId(userId);
-        verify(cartRepository).save(any());
+        securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+
+        reactiveContextMock = Mockito.mockStatic(ReactiveSecurityContextHolder.class);
+        reactiveContextMock.when(ReactiveSecurityContextHolder::getContext)
+                .thenReturn(Mono.just(securityContext));
+    }
+
+    @AfterEach
+    void tearDown() {
+        reactiveContextMock.close();
     }
 
     @Test
-    void getCartById_ExistingCart_ReturnsCart() {
-        Cart existingCart = Cart.builder().id(1).userId(UUID.randomUUID()).build();
+    void getUserCart_shouldReturnExistingCart1() {
+        when(cartRepository.findByUserId(testUserId)).thenReturn(Mono.just(testCart));
 
-        when(cartRepository.findById(1)).thenReturn(Mono.just(existingCart));
+        StepVerifier.create(cartService.getUserCart())
+                .expectNextMatches(cart ->
+                        cart.getId().equals(testCartId) &&
+                                cart.getUserId().equals(testUserId))
+                .verifyComplete();
+    }
 
-        Cart result = cartService.getCartById(1).block();
-        assertEquals(existingCart, result);
+
+    @Test
+    void getUserCart_shouldReturnExistingCart() {
+        when(cartRepository.findByUserId(testUserId)).thenReturn(Mono.just(testCart));
+
+        StepVerifier.create(cartService.getUserCart())
+                .expectNext(testCart)
+                .verifyComplete();
     }
 
     @Test
-    void getCartById_NonExistingCart_ReturnsNull() {
-        when(cartRepository.findById(1)).thenReturn(Mono.empty());
+    void getUserCart_shouldCreateNewCartIfNotExists() {
+        when(cartRepository.findByUserId(testUserId)).thenReturn(Mono.empty());
+        when(cartRepository.save(any())).thenReturn(Mono.just(testCart));
 
-        Cart result = cartService.getCartById(1).block();
-        assertNull(result);
+        StepVerifier.create(cartService.getUserCart())
+                .expectNextMatches(cart ->
+                        cart.getUserId().equals(testUserId))
+                .verifyComplete();
     }
 
     @Test
-    void getCartItem_ExistingItem_ReturnsItem() {
-        CartItem cartItem = CartItem.builder()
-                .itemId(1)
-                .cartId(1)
-                .count(1)
-                .build();
-
-        when(cartItemsRepository.findByItemIdAndCartId(1, 1)).thenReturn(Mono.just(cartItem));
-
-        CartItem result = cartService.getCartItem(1, 1).block();
-        assertEquals(cartItem, result);
-    }
-
-    @Test
-    void addNewItemToCart_ValidActionAndItem_AddsItem() {
-        Item item = Item.builder().id(1).price(100.0).build();
-        when(itemRepository.findById(1)).thenReturn(Mono.just(item));
-        when(cartItemsRepository.save(any())).thenReturn(Mono.just(new CartItem()));
-
-        cartService.addNewItemToCart("plus", 1, 1).block();
-
-        verify(itemRepository).findById(1);
-        verify(cartItemsRepository).save(any());
-    }
-
-    @Test
-    void addNewItemToCart_InvalidAction_DoesNothing() {
-        cartService.addNewItemToCart("invalid", 1, 1).block();
-
-        verifyNoInteractions(itemRepository, cartItemsRepository);
-    }
-
-    @Test
-    void addNewItemToCart_NonExistingItem_ThrowsException() {
-        when(itemRepository.findById(1)).thenReturn(Mono.empty());
-
-        assertThrows(NoSuchElementException.class, () -> {
-            cartService.addNewItemToCart("plus", 1, 1).block();
-        });
-    }
-
-    @Test
-    void addItemToCart_IncrementsCountAndSaves() {
-        CartItem cartItem = CartItem.builder()
-                .cartId(1)
-                .itemId(1)
-                .count(1)
-                .build();
-
-        when(cartItemsRepository.save(cartItem)).thenReturn(Mono.just(cartItem));
-
-        cartService.addItemToCart(cartItem).block();
-
-        assertEquals(2, cartItem.getCount());
-        verify(cartItemsRepository).save(cartItem);
-    }
-
-    @Test
-    void removeItemFromCart_CountGreaterThan1_DecrementsCount() {
-        CartItem cartItem = CartItem.builder()
-                .cartId(1)
-                .itemId(1)
-                .count(2)
-                .build();
-
-        when(cartItemsRepository.save(cartItem)).thenReturn(Mono.just(cartItem));
-
-        cartService.removeItemFromCart(cartItem).block();
-
-        assertEquals(1, cartItem.getCount());
-        verify(cartItemsRepository).save(cartItem);
-        verify(cartItemsRepository, never()).delete(any());
-    }
-
-    @Test
-    void removeItemFromCart_CountEquals1_DeletesItem() {
-        CartItem cartItem = CartItem.builder()
-                .cartId(1)
-                .itemId(1)
-                .count(1)
-                .build();
-
-        when(cartItemsRepository.delete(cartItem)).thenReturn(Mono.empty());
-
-        cartService.removeItemFromCart(cartItem).block();
-
-        verify(cartItemsRepository).delete(cartItem);
-        verify(cartItemsRepository, never()).save(any());
-    }
-
-    @Test
-    void removeAllFromCart_DeletesItem() {
-        CartItem cartItem = new CartItem();
-        when(cartItemsRepository.delete(cartItem)).thenReturn(Mono.empty());
-
-        cartService.removeAllFromCart(cartItem).block();
-
-        verify(cartItemsRepository).delete(cartItem);
-    }
-
-    @Test
-    void buy_CreatesOrderAndClearsCart() {
-        Integer cartId = 1;
-        UUID userId = UUID.randomUUID();
-        Cart cart = Cart.builder().id(cartId).userId(userId).build();
-
-        HttpCookie cookie = new HttpCookie("cart_id", cartId.toString());
-        MultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
-        cookies.add("cart_id", cookie);
-        when(request.getCookies()).thenReturn(cookies);
-
-        when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
-
-        when(orderService.saveOrder(eq(userId), eq(100.0), anyList()))
-                .thenReturn(Mono.just(new Order()));
-
-        when(cartItemsRepository.deleteAllByCartId(cartId)).thenReturn(Mono.empty());
-
-        when(paymentApiClient.apiPurchasePost(any(ApiPurchasePostRequest.class)))
+    void handleItemAction_plusNewItem_shouldAddNewItem() {
+        when(cartRepository.findByUserId(testUserId)).thenReturn(Mono.just(testCart));
+        when(cartItemsRepository.findByItemIdAndCartId(testItemId, testCartId))
                 .thenReturn(Mono.empty());
+        when(itemRepository.findById(testItemId)).thenReturn(Mono.just(testItem));
+        when(cartItemsRepository.save(any())).thenReturn(Mono.just(testCartItem));
 
-        CartItemWithItem projection = mock(CartItemWithItem.class);
-        when(projection.getCartId()).thenReturn(cartId);
-        when(projection.getItemId()).thenReturn(1);
-        when(projection.getCount()).thenReturn(1);
-        when(projection.getItemPrice()).thenReturn(100.0);
-        when(cartItemsRepository.findByCartIdWithItem(cartId)).thenReturn(Flux.just(projection));
+        StepVerifier.create(cartService.handleItemAction("plus", testItemId))
+                .verifyComplete();
 
-        cartService.buy(request).block();
-
-        verify(cartRepository).findById(cartId);
-        verify(cartItemsRepository).findByCartIdWithItem(cartId);
-
-        verify(orderService).saveOrder(eq(userId), eq(100.0), anyList());
-
-        verify(cartItemsRepository).deleteAllByCartId(cartId);
+        verify(cartItemsRepository).save(argThat(item ->
+                item.getCount() == 1 &&
+                        item.getItemId().equals(testItemId)));
     }
 
     @Test
-    void buy_EmptyCart_ThrowsIllegalArgumentException() {
-        Integer cartId = 1;
-        UUID userId = UUID.randomUUID();
-        Cart cart = Cart.builder().id(cartId).userId(userId).build();
+    void handleItemAction_minus_shouldDecrementCount() {
+        when(cartRepository.findByUserId(testUserId)).thenReturn(Mono.just(testCart));
+        when(cartItemsRepository.findByItemIdAndCartId(testItemId, testCartId))
+                .thenReturn(Mono.just(testCartItem));
+        when(cartItemsRepository.save(any())).thenReturn(Mono.just(testCartItem));
 
-        HttpCookie cookie = new HttpCookie("cart_id", cartId.toString());
-        MultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
-        cookies.add("cart_id", cookie);
-        when(request.getCookies()).thenReturn(cookies);
+        StepVerifier.create(cartService.handleItemAction("minus", testItemId))
+                .verifyComplete();
 
-        when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
-        when(cartItemsRepository.findByCartIdWithItem(cartId)).thenReturn(Flux.empty());
-
-        Mono<Void> result = cartService.buy(request);
-
-        assertThrows(IllegalArgumentException.class, result::block);
+        verify(cartItemsRepository).save(argThat(item -> item.getCount() == 1));
     }
 
     @Test
-    void buy_ShouldFail_WhenPaymentApiReturnsBadRequest() {
-        Integer cartId = 1;
-        UUID userId = UUID.randomUUID();
-        Cart cart = Cart.builder().id(cartId).userId(userId).build();
+    void handleItemAction_delete_shouldRemoveItem() {
+        when(cartRepository.findByUserId(testUserId)).thenReturn(Mono.just(testCart));
+        when(cartItemsRepository.findByItemIdAndCartId(testItemId, testCartId))
+                .thenReturn(Mono.just(testCartItem));
+        when(cartItemsRepository.delete(any())).thenReturn(Mono.empty());
 
-        HttpCookie cookie = new HttpCookie("cart_id", cartId.toString());
-        MultiValueMap<String, HttpCookie> cookies = new LinkedMultiValueMap<>();
-        cookies.add("cart_id", cookie);
-        when(request.getCookies()).thenReturn(cookies);
+        StepVerifier.create(cartService.handleItemAction("delete", testItemId))
+                .verifyComplete();
 
-        when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
+        verify(cartItemsRepository).delete(testCartItem);
+    }
 
-        when(paymentApiClient.apiPurchasePost(any()))
-                .thenReturn(Mono.error(new WebClientResponseException(
-                        500, "Server Error", null, null, null)));
+    @Test
+    void buy_shouldProcessPaymentAndCreateOrder() {
+        CartItemWithItem cartItemWithItem = new CartItemWithItem(
+                testItemId, testCartId, 2,
+                "Test Item", "Desc", "img.jpg", 10.0
+        );
 
-        CartItemWithItem projection = mock(CartItemWithItem.class);
-        when(projection.getCartId()).thenReturn(cartId);
-        when(projection.getItemId()).thenReturn(1);
-        when(projection.getCount()).thenReturn(1);
-        when(projection.getItemPrice()).thenReturn(100.0);
-        when(cartItemsRepository.findByCartIdWithItem(cartId)).thenReturn(Flux.just(projection));
+        when(cartRepository.findByUserId(testUserId)).thenReturn(Mono.just(testCart));
+        when(cartItemsRepository.findByCartIdWithItem(testCartId))
+                .thenReturn(Flux.just(cartItemWithItem));
+        when(paymentApiClient.apiPurchasePost(any())).thenReturn(Mono.empty());
+        when(orderService.saveOrder(any(), any(), any())).thenReturn(Mono.empty());
+        when(cartItemsRepository.deleteAllByCartId(testCartId)).thenReturn(Mono.empty());
 
-        Mono<Void> result = cartService.buy(request);
+        StepVerifier.create(cartService.buy())
+                .verifyComplete();
 
-        assertThrows(RuntimeException.class, result::block);
+        verify(paymentApiClient).apiPurchasePost(argThat(req ->
+                req.getAmount() == 20.0));
+        verify(orderService).saveOrder(
+                eq(testUserId),
+                eq(20.0),
+                argThat(items -> items.size() == 1));
+    }
+
+    @Test
+    void buy_emptyCart_shouldThrowException() {
+        when(cartRepository.findByUserId(testUserId)).thenReturn(Mono.just(testCart));
+        when(cartItemsRepository.findByCartIdWithItem(testCartId))
+                .thenReturn(Flux.empty());
+
+        StepVerifier.create(cartService.buy())
+                .expectError(IllegalArgumentException.class)
+                .verify();
     }
 }

@@ -9,6 +9,7 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import reactor.core.publisher.Mono;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -16,7 +17,7 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 public class SecurityConfig {
 
     @Bean
-    public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
+    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         return http
                 .authorizeExchange(authorize -> authorize
                         .pathMatchers("/login").permitAll()
@@ -24,7 +25,11 @@ public class SecurityConfig {
                         .pathMatchers("/items/**").permitAll()
                         .anyExchange().authenticated()
                 )
-                .formLogin(form -> form.loginPage("/login"))
+                .formLogin(form -> form
+                        .loginPage("/login")
+                        .authenticationSuccessHandler((exchange, authentication) ->
+                                Mono.empty())
+                )
                 .oauth2Client(Customizer.withDefaults())
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .build();

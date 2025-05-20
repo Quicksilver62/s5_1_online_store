@@ -2,7 +2,6 @@ package ru.yandex.practicum.showcase_service.configuration;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
@@ -30,8 +29,6 @@ public class SecurityConfig {
                         .authenticationSuccessHandler((exchange, authentication) ->
                                 Mono.empty())
                 )
-                .oauth2Client(Customizer.withDefaults())
-                .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .build();
     }
 

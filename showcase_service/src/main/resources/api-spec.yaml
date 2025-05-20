@@ -6,10 +6,23 @@ info:
 servers:
   - url: http://127.0.0.1:8081
     description: payment service
+
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: http://localhost:8082/realms/online-store/protocol/openid-connect/token
+          scopes:
+            profile: Profile scope
+
 paths:
   /api/amount:
     get:
       summary: Получить баланс на счете
+      security:
+        - oauth2: [ profile ]
       responses:
         '200':
           description: Успешный ответ
@@ -31,6 +44,8 @@ paths:
     post:
       summary: Осуществить платеж
       description: Списание указанной суммы с баланса пользователя
+      security:
+        - oauth2: [ profile ]
       requestBody:
         required: true
         content:

@@ -25,19 +25,16 @@ spring:
       client:
         provider:
           keycloak:
-            authorization-uri: http://localhost:8082/realms/online-store/protocol/openid-connect/auth
+            issuer-uri: http://localhost:8082/realms/online-store
             token-uri: http://localhost:8082/realms/online-store/protocol/openid-connect/token
-            user-info-uri: http://localhost:8082/realms/online-store/protocol/openid-connect/userinfo
-            user-name-attribute: sub
-            jwk-set-uri: http://localhost:8082/realms/online-store/protocol/openid-connect/certs
         registration:
-          keycloak:
-            authorizationGrantType: authorization_code
+          yandex:
             provider: keycloak
+            authorizationGrantType: client_credentials
             client-id: showcase-service
             client-secret: qFFgInZdbbI5RPkfhxCiXwz1NBZMAnzX
-            redirect-uri: '{baseUrl}/{action}/oauth2/code/{registrationId}'
-            scope: openid, profile, email
+            scope: profile
+            clientAuthenticationMethod: client_secret_post
 
 payment:
   service:
